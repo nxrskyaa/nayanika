@@ -18,11 +18,9 @@ import {
 const hex = (c) => '#' + c.toString(16).padStart(6, '0')
 
 const PHASE_LABEL = {
-  night: 'malam',
-  twilight: 'senja',
-  goldenhour: 'sore',
-  morning: 'pagi',
-  day: 'siang',
+  sore: 'sore',
+  siang: 'siang',
+  terik: 'terik',
 }
 
 function el(tag, cls, html) {
@@ -232,7 +230,6 @@ export class Hud {
     if (this.clockTime.textContent !== label) this.clockTime.textContent = label
     const nice = PHASE_LABEL[phase] || phase
     if (this.clockPhase.textContent !== nice) this.clockPhase.textContent = nice
-    this.clock.classList.toggle('night', phase === 'night' || phase === 'twilight')
   }
 
   /** Quiet corner byline. Sits under everything and never takes a click. */

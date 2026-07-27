@@ -231,25 +231,54 @@ export function planLots(plan, opts = {}) {
 export function planStreetFurniture(plan, opts = {}) {
   const rng = makeRng(opts.seed ?? 4711)
   const density = opts.density ?? 0.55
+  const minGap = opts.minGap ?? 3.2
   const spots = []
+
+  /**
+   * Walk each kerb by distance, not by polyline index.
+   *
+   * The points on a street are only about a metre and a half apart, so rolling
+   * the density per index put poles, bins and signs within half a metre of one
+   * another — they piled up into heaps instead of lining the road. Stepping a
+   * real distance along the kerb and rejecting anything that lands too close to
+   * a spot already taken is what makes street furniture read as placed.
+   */
+  const stride = opts.stride ?? 7
+  const far = (x, z) => {
+    for (let i = 0; i < spots.length; i++) {
+      const dx = spots[i].x - x
+      const dz = spots[i].z - z
+      if (dx * dx + dz * dz < minGap * minGap) return false
+    }
+    return true
+  }
 
   for (const street of plan.streets) {
     const pts = street.points
-    const half = street.width * 0.5 + rngRange(rng, 0.5, 1.1)
+    if (pts.length < 3) continue
+    const half = street.width * 0.5 + rngRange(rng, 0.6, 1.2)
+    let acc = stride * rngRange(rng, 0.2, 0.9)
+
     for (let i = 1; i < pts.length - 1; i++) {
+      acc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z)
+      if (acc < stride) continue
+      acc = 0
       if (!rngChance(rng, density)) continue
+
       const p = pts[i]
-      const prev = pts[i - 1]
-      const next = pts[i + 1]
-      const tx = next.x - prev.x
-      const tz = next.z - prev.z
+      const tx = pts[i + 1].x - pts[i - 1].x
+      const tz = pts[i + 1].z - pts[i - 1].z
       const len = Math.hypot(tx, tz) || 1
       const nx = -tz / len
       const nz = tx / len
       const side = rngChance(rng, 0.5) ? 1 : -1
+      const x = p.x + nx * half * side
+      const z = p.z + nz * half * side
+      if (!far(x, z)) continue
+
       spots.push({
-        x: p.x + nx * half * side,
-        z: p.z + nz * half * side,
+        x,
+        z,
         angle: Math.atan2(-nx * side, -nz * side),
         side,
         streetWidth: street.width,

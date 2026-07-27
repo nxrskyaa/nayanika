@@ -459,7 +459,7 @@ function frame() {
   // far enough around the planet moves you through the hours as well.
   dayNight.update(started ? dt : 0, player.up, stage.camera)
   stage.updateSunTarget(player.worldPos)
-  hud.setClock(dayNight.clockLabel(player.up), dayNight.grade.name)
+  hud.setClock(dayNight.clockLabel(), dayNight.grade.name)
 
   // --- townsfolk -----------------------------------------------------
   // Far-off characters are dropped entirely; on a planet this size most of

@@ -74,12 +74,23 @@ export function toon(color, opts = {}) {
  * markings, plaza paving. The polygon offset keeps it in front of the terrain
  * without needing a lift big enough to see from the side.
  */
+/**
+ * Painted-on-the-ground layers, back to front. Two streets crossing each other
+ * each carry their own pavement, and without an ordering the pavement of one
+ * lands across the tarmac of the other — a kerb-coloured bar straight over the
+ * road, which reads as the road stopping dead at every junction. Giving tarmac
+ * a stronger depth bias than pavement, and markings a stronger one still, makes
+ * junctions resolve to continuous road.
+ */
+export const DECAL_LAYER = { pavement: 0, road: 1, marking: 2 }
+
 export function groundDecal(color, opts = {}) {
+  const layer = opts.layer ?? DECAL_LAYER.pavement
   return toon(color, {
     ...opts,
     polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -4,
+    polygonOffsetFactor: -1 - layer * 2,
+    polygonOffsetUnits: -2 - layer * 4,
     // Double sided on purpose. These are flat ribbons laid on a curved planet;
     // if one ever ends up wound the wrong way — a fold in a bend, a caller
     // handing its edges over backwards — culling would delete it silently and

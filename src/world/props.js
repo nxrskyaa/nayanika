@@ -42,16 +42,26 @@ export function utilityPole(rng, height = 9) {
   return g
 }
 
+let _wireMaterial = null
+
+/** A slack cable between two points, hanging toward the planet's core. */
 export function powerLine(a, b, sag = 0.6, color = INK) {
   const pts = []
   const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5)
-  const down = mid.clone().normalize().multiplyScalar(-sag)
-  mid.add(down)
+  mid.addScaledVector(mid.clone().normalize(), -sag)
   const curve = new THREE.QuadraticBezierCurve3(a, mid, b)
-  for (let i = 0; i <= 12; i++) pts.push(curve.getPoint(i / 12))
-  const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 12, 0.035, 4, false)
-  return new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color }))
+  for (let i = 0; i <= 10; i++) pts.push(curve.getPoint(i / 10))
+  const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.03, 4, false)
+  // One shared material, or every span becomes its own draw call.
+  if (!_wireMaterial) _wireMaterial = new THREE.MeshBasicMaterial({ color })
+  return new THREE.Mesh(geo, _wireMaterial)
 }
+
+/** Where a pole's cables attach, in the pole's own local space. */
+export const POLE_ATTACH = (height) => [
+  [-1.05, height - 0.71, 0],
+  [1.05, height - 0.71, 0],
+]
 
 export function roadSign(rng, kind = null) {
   const g = group()
@@ -929,6 +939,76 @@ export function warung(rng) {
     )
   }
   g.userData.footprint = Math.max(w, d) * 0.6
+  return g
+}
+
+/**
+ * Bale kul-kul — the drum tower. Every banjar has one, and it is the tallest
+ * thing in a village that is not a temple: a brick shaft, an open timber deck
+ * near the top and the slit drum itself hanging inside an ijuk roof.
+ */
+export function kulkulTower(rng, scale = 1) {
+  const g = group()
+  const shaft = 5.4 * scale
+  const w = 1.5 * scale
+
+  g.add(at(box(w * 1.5, 0.4 * scale, w * 1.5, BUILD.parasDark), 0, 0.2 * scale, 0))
+  g.add(at(box(w * 1.28, 0.26 * scale, w * 1.28, BUILD.paras), 0, 0.52 * scale, 0))
+  g.add(at(box(w, shaft, w, BUILD.bata), 0, 0.65 * scale + shaft / 2, 0))
+  // Paras banding up the brick.
+  for (let i = 1; i <= 3; i++) {
+    g.add(at(box(w * 1.12, 0.16 * scale, w * 1.12, BUILD.paras), 0, 0.65 * scale + (shaft * i) / 4, 0))
+  }
+
+  const deckY = 0.65 * scale + shaft
+  g.add(at(box(w * 1.9, 0.2 * scale, w * 1.9, BUILD.teak), 0, deckY, 0))
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      g.add(at(cyl(0.08 * scale, 0.1 * scale, 1.9 * scale, 7, BUILD.teakDark), sx * w * 0.72, deckY + 0.95 * scale, sz * w * 0.72))
+    }
+  }
+  // Rail around the deck.
+  for (const [x, z, ry] of [[0, w * 0.72, 0], [0, -w * 0.72, 0], [w * 0.72, 0, Math.PI / 2], [-w * 0.72, 0, Math.PI / 2]]) {
+    g.add(at(box(w * 1.6, 0.09 * scale, 0.09 * scale, BUILD.teakDark), x, deckY + 0.55 * scale, z, 0, ry, 0))
+  }
+
+  // The kul-kul: a hollowed log hung from the beam.
+  g.add(at(box(w * 1.5, 0.1 * scale, 0.1 * scale, BUILD.teakDark), 0, deckY + 1.78 * scale, 0))
+  const drum = at(cyl(0.19 * scale, 0.19 * scale, 1.15 * scale, 9, BUILD.woodDark), 0, deckY + 1.1 * scale, 0)
+  g.add(drum)
+  g.add(at(box(0.05 * scale, 0.55 * scale, 0.05 * scale, BUILD.teakDark), 0, deckY + 1.5 * scale, 0))
+
+  const roofY = deckY + 1.95 * scale
+  g.add(at(cone(w * 1.75, 1.5 * scale, 4, BUILD.ijuk), 0, roofY + 0.75 * scale, 0, 0, Math.PI / 4, 0))
+  g.add(at(cone(0.15 * scale, 0.5 * scale, 6, BUILD.gold), 0, roofY + 1.7 * scale, 0))
+
+  g.userData.footprint = w * 1.1
+  return g
+}
+
+/**
+ * Umbul-umbul — the tall narrow banner planted along a road before a ceremony.
+ * Bamboo pole, a long cloth streamer and a curl at the tip.
+ */
+export function umbulUmbul(rng, scale = 1) {
+  const g = group()
+  const h = rngRange(rng, 4.2, 5.4) * scale
+  const cloth = rngPick(rng, [BUILD.gold, ACCENT.polengWhite, ACCENT.deepRed, ACCENT.saffron, NATURE.leafDark])
+
+  g.add(at(cyl(0.04 * scale, 0.055 * scale, h, 6, BUILD.bamboo), 0, h / 2, 0))
+  // The streamer hangs from most of the pole, with a gentle taper.
+  const panels = 6
+  for (let i = 0; i < panels; i++) {
+    const t = i / panels
+    const segH = (h * 0.62) / panels
+    const y = h * 0.34 + t * h * 0.62 + segH * 0.5
+    const wide = (0.34 - t * 0.14) * scale
+    const seg = at(box(0.03 * scale, segH, wide, i % 2 ? cloth : BUILD.gold), 0, y, wide * 0.5)
+    seg.rotation.y = Math.sin(t * 3.1) * 0.16
+    g.add(seg)
+  }
+  g.add(at(cone(0.09 * scale, 0.34 * scale, 6, BUILD.gold), 0, h + 0.17 * scale, 0))
+  g.add(at(cyl(0.075 * scale, 0.075 * scale, 0.3 * scale, 7, ACCENT.polengWhite), 0, 0.42 * scale, 0))
   return g
 }
 

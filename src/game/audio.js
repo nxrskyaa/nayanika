@@ -8,7 +8,31 @@
 
 const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12)
 
-// A minor pentatonic, spread over two octaves.
+/**
+ * Pelog selisir, the five-tone scale most Balinese gong kebyar is built on.
+ *
+ * The steps are deliberately not equal tempered — that uneven spacing is most
+ * of why gamelan does not sound like a Western pentatonic, and rounding it to
+ * the piano throws the whole character away.
+ */
+const PELOG_CENTS = [0, 130, 275, 700, 830]
+const GAMELAN_ROOT = 261.6
+
+/** Frequency for a scale degree; degrees past 4 carry on into the next octave. */
+function pelog(degree) {
+  const oct = Math.floor(degree / 5)
+  const step = ((degree % 5) + 5) % 5
+  return GAMELAN_ROOT * Math.pow(2, oct + PELOG_CENTS[step] / 1200)
+}
+
+/** Core melodies (pokok). Eight beats each, cycled for variation. */
+const POKOK = [
+  [0, 1, 3, 4, 3, 1, 2, 0],
+  [2, 3, 4, 3, 1, 0, 1, 2],
+  [0, 4, 3, 4, 1, 3, 2, 1],
+]
+
+// Kept for the older pad path and the UI blips.
 const SCALE = [57, 60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84]
 const CHORDS = [
   [45, 52, 57, 64],
@@ -175,28 +199,101 @@ export class Audio {
     const ahead = 0.4
     while (this._nextNoteTime < this.ctx.currentTime + ahead) {
       this._playStep(this._step, this._nextNoteTime)
-      this._nextNoteTime += 0.34
+      this._nextNoteTime += 0.19
       this._step++
     }
   }
 
+  /**
+   * One step of a sixteen-beat gongan.
+   *
+   * The shape is the standard colotomic one: the big gong lands on beat zero,
+   * a kempur answers it halfway, small kempli tick the quarters, jegogan hold
+   * the bass, and the pokok melody runs over the top with kotekan figuration
+   * interlocking above that.
+   */
   _playStep(step, time) {
-    const bar = Math.floor(step / 8) % CHORDS.length
-    const chord = CHORDS[bar]
+    const beat = step % 16
+    const cycle = Math.floor(step / 16)
+    const pokok = POKOK[cycle % POKOK.length]
 
-    // Pad, once per bar.
-    if (step % 8 === 0) {
-      for (const n of chord) this._pad(NOTE(n), time, 2.9)
+    if (beat === 0) {
+      this._gong(time, 0.16)
+      // Alternate cycles carry the fast interlocking part, so it breathes.
+      this._busy = cycle % 2 === 1
     }
+    if (beat === 8) this._gong(time, 0.075, 1.5)
+    if (beat % 4 === 2) this._gangsa(pelog(11), time, 0.016, 0.34)
 
-    // Music box, sparse and slightly random so it never sounds like a loop.
-    const density = [1, 0, 0.55, 0, 0.8, 0, 0.4, 0.25][step % 8]
-    if (Math.random() < density * 0.72) {
-      const idx = 2 + Math.floor(Math.random() * (SCALE.length - 3))
-      this._pluck(NOTE(SCALE[idx]), time, 0.055 + Math.random() * 0.035)
+    // Jegogan: one low note per quarter of the cycle.
+    if (beat % 4 === 0) this._gangsa(pelog(pokok[(beat / 4) * 2]) * 0.25, time, 0.07, 3.2)
+
+    // Pokok: the melody proper, one note every other beat.
+    if (beat % 2 === 0) this._gangsa(pelog(pokok[beat / 2] + 5), time, 0.05, 1.4)
+
+    // Kotekan: fast interlocking figuration an octave up.
+    if (this._busy) {
+      const deg = pokok[Math.floor(beat / 2)]
+      this._gangsa(pelog(deg + 10 + (beat % 2 ? 2 : 0)), time, 0.024, 0.4)
     }
-    if (step % 16 === 8 && Math.random() < 0.5) {
-      this._pluck(NOTE(SCALE[Math.floor(Math.random() * 4)] - 12), time + 0.08, 0.05)
+  }
+
+  /**
+   * A struck bronze bar: inharmonic partials, an almost instant attack and a
+   * long ring. The fundamental is played by a detuned pair a few Hz apart —
+   * the beating between them is the "ombak" that gives a Balinese gamelan its
+   * shimmer, and without it the whole thing sounds like a toy xylophone.
+   */
+  _gangsa(freq, time, gain = 0.05, decay = 1.4) {
+    const ctx = this.ctx
+    if (!ctx) return
+    const voices = [
+      [1, 1, 1],
+      [1, 1, -1],
+      [2.76, 0.36, 0],
+      [5.4, 0.13, 0],
+    ]
+    for (const [mult, amp, beatSide] of voices) {
+      const osc = ctx.createOscillator()
+      osc.type = 'sine'
+      osc.frequency.value = freq * mult + beatSide * 2.8
+      const d = decay / (1 + (mult > 1 ? 1.4 : 0))
+      const g = ctx.createGain()
+      const peak = Math.max(0.0002, gain * amp * (beatSide === 0 ? 1 : 0.5))
+      g.gain.setValueAtTime(0.0001, time)
+      g.gain.exponentialRampToValueAtTime(peak, time + 0.004)
+      g.gain.exponentialRampToValueAtTime(0.0001, time + d)
+      osc.connect(g)
+      g.connect(this.musicBus)
+      g.connect(this.reverbIn)
+      osc.start(time)
+      osc.stop(time + d + 0.05)
+    }
+  }
+
+  /** The hanging gong: low, slow to bloom, and it bends down as it settles. */
+  _gong(time, gain = 0.16, pitch = 1) {
+    const ctx = this.ctx
+    if (!ctx) return
+    const base = 65.4 * pitch
+    for (const [mult, amp, dec] of [
+      [1, 1, 5.5],
+      [2.01, 0.34, 3.6],
+      [2.98, 0.16, 2.4],
+    ]) {
+      const osc = ctx.createOscillator()
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(base * mult * 1.008, time)
+      osc.frequency.exponentialRampToValueAtTime(base * mult, time + 1.1)
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.0001, time)
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain * amp), time + 0.06)
+      g.gain.exponentialRampToValueAtTime(0.0001, time + dec)
+      osc.connect(g)
+      g.connect(this.musicBus)
+      g.connect(this.reverbIn)
+      osc.start(time)
+      osc.stop(time + dec + 0.1)
     }
   }
 

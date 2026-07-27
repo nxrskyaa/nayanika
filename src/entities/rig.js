@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { CHAR, ACCENT, BUILD, INK } from '../core/palette.js'
+import { CHAR, ACCENT, BUILD, INK, NATURE } from '../core/palette.js'
 import { toon } from '../render/materials.js'
 
 /**
@@ -477,40 +477,62 @@ export function createCharacter(look = {}) {
   const face = new THREE.Group()
   head.add(face)
 
-  const eyeX = R * 0.34
-  const eyeY = R * 0.02
-  const browY = R * 0.3
+  const eyeX = R * 0.35
+  const eyeY = R * 0.01
+  const browY = R * 0.33
   for (const s of [-1, 1]) {
-    // Flatter than they are wide, and only just proud of the cheek.
-    const eye = ellipsoid(R * 0.13, R * 0.175, R * 0.055, CHAR.eye, 12)
-    eye.position.set(s * eyeX, eyeY, surfaceZ(eyeX, eyeY) - R * 0.025)
+    // Soft almond, wider than tall and barely proud of the cheek.
+    const eye = ellipsoid(R * 0.145, R * 0.185, R * 0.05, CHAR.eye, 14)
+    eye.position.set(s * eyeX, eyeY, surfaceZ(eyeX, eyeY) - R * 0.028)
     eye.castShadow = false
     face.add(eye)
 
-    const spark = ellipsoid(R * 0.042, R * 0.05, R * 0.028, ACCENT.white, 6)
-    spark.position.set(s * eyeX + R * 0.04, eyeY + R * 0.055, surfaceZ(eyeX, eyeY) + R * 0.012)
+    // Catchlight, upper-inner and small — sitting on the eye rather than
+    // beside it, which is what stops it reading as a blemish.
+    const spark = ellipsoid(R * 0.038, R * 0.042, R * 0.022, ACCENT.white, 8)
+    spark.position.set(s * (eyeX - R * 0.035), eyeY + R * 0.07, surfaceZ(eyeX, eyeY) + R * 0.016)
     spark.castShadow = false
     face.add(spark)
 
-    const browBar = boxMesh(R * 0.23, R * 0.048, R * 0.05, L.hair, R * 0.02)
-    browBar.position.set(s * eyeX, browY, surfaceZ(eyeX, browY) - R * 0.008)
-    browBar.rotation.z = s * -0.12
+    // Brows: short, thin, and angled. A thick bar reads as a scowl.
+    const browBar = boxMesh(R * 0.19, R * 0.036, R * 0.04, L.hair, R * 0.015)
+    browBar.position.set(s * eyeX, browY, surfaceZ(eyeX, browY) - R * 0.006)
+    browBar.rotation.z = s * -0.16
     browBar.castShadow = false
     face.add(browBar)
+
+    // A hint of warmth on the cheek.
+    const cheekY = -R * 0.2
+    const cheekX = R * 0.52
+    const blush = ellipsoid(R * 0.11, R * 0.06, R * 0.03, NATURE.hibiscus, 8)
+    blush.position.set(s * cheekX, cheekY, surfaceZ(cheekX, cheekY) - R * 0.012)
+    blush.castShadow = false
+    face.add(blush)
   }
 
-  // Just enough nose to break the profile, and a small closed smile.
+  // Just enough nose to break the profile.
   const noseY = -R * 0.13
-  const nose = ellipsoid(R * 0.052, R * 0.045, R * 0.045, L.skin, 8)
+  const nose = ellipsoid(R * 0.05, R * 0.042, R * 0.042, L.skin, 8)
   nose.position.set(0, noseY, surfaceZ(0, noseY))
   nose.castShadow = false
   face.add(nose)
 
-  const mouthY = -R * 0.36
-  const mouth = boxMesh(R * 0.16, R * 0.04, R * 0.045, CHAR.eye, R * 0.016)
-  mouth.position.set(0, mouthY, surfaceZ(0, mouthY) - R * 0.01)
-  mouth.castShadow = false
-  face.add(mouth)
+  // Mouth as a shallow arc of three segments — a straight bar looks grim, and
+  // the curve is what makes the whole face read as friendly.
+  const mouthY = -R * 0.37
+  for (const [dx, dy, rot, w] of [
+    [0, 0, 0, 0.11],
+    [-0.075, 0.028, 0.42, 0.07],
+    [0.075, 0.028, -0.42, 0.07],
+  ]) {
+    const seg = boxMesh(R * w, R * 0.036, R * 0.04, CHAR.eye, R * 0.014)
+    const mx = R * dx
+    const my = mouthY + R * dy
+    seg.position.set(mx, my, surfaceZ(mx, my) - R * 0.012)
+    seg.rotation.z = rot
+    seg.castShadow = false
+    face.add(seg)
+  }
 
   const brow = new THREE.Group()
   face.add(brow)

@@ -111,15 +111,29 @@ export class World {
       })
       highways.add(road)
 
-      // Poles and guard rails strung along the route.
+      // Poles at a steady spacing, with the cables actually strung between
+      // them. Skipping poles at random left ragged clumps and the wires were
+      // never drawn at all, so the roadside read as scattered posts.
       const rng = makeRng(3000 + i)
       const side = offsetPath(dirs, 5.6, t.radius)
-      for (let s = 4; s < dirs.length - 4; s += 8) {
-        if (!rngChance(rng, 0.5)) continue
+      const height = rngRange(rng, 7.5, 9)
+      const attach = P.POLE_ATTACH(height)
+      let prevPoints = null
+      for (let s = 4; s < dirs.length - 4; s += 9) {
         const d = side[s]
-        const pole = P.utilityPole(rng, rngRange(rng, 7, 10))
+        const pole = P.utilityPole(rng, height)
         this.placeLocal(pole, d, dirs[Math.min(dirs.length - 1, s + 1)])
         highways.add(pole)
+
+        pole.updateMatrixWorld(true)
+        const points = attach.map(([x, y, z]) => pole.localToWorld(new THREE.Vector3(x, y, z)))
+        if (prevPoints) {
+          for (let k = 0; k < points.length; k++) {
+            const span = prevPoints[k].distanceTo(points[k])
+            highways.add(P.powerLine(prevPoints[k], points[k], span * 0.055))
+          }
+        }
+        prevPoints = points
       }
     }
     this.root.add(mergeByMaterial(highways))
@@ -265,7 +279,12 @@ export class World {
     }
 
     // Street furniture.
-    const spots = planStreetFurniture(plan, { seed: seed + 41, density: urban ? 0.4 : 0.16 })
+    const spots = planStreetFurniture(plan, {
+      seed: seed + 41,
+      density: urban ? 0.72 : 0.4,
+      stride: urban ? 4.6 : 7,
+      minGap: urban ? 3.0 : 4.5,
+    })
     for (const s of spots) {
       const d = toDir(s.x, s.z, new THREE.Vector3())
       const prop = this.makeStreetProp(zone, rng)
@@ -338,21 +357,22 @@ export class World {
     const urban = zone.biome === 'town' || zone.biome === 'industry'
     const table = urban
       ? [
-          [P.utilityPole, 0.13],
-          [P.penjor, 0.11],
+          [P.penjor, 0.13],
+          [P.utilityPole, 0.1],
           [P.moped, 0.1],
-          [P.roadSign, 0.07],
+          [P.umbulUmbul, 0.09],
           [P.canang, 0.09],
           [P.balineseShrine, 0.06],
-          [P.planter, 0.09],
-          [P.trafficCone, 0.06],
-          [P.trashBin, 0.04],
+          [P.planter, 0.08],
+          [P.roadSign, 0.05],
           [P.bicycle, 0.05],
           [P.streetLamp, 0.05],
           [P.tedung, 0.05],
-          [P.vendingMachine, 0.04],
+          [P.trafficCone, 0.04],
+          [P.trashBin, 0.03],
+          [P.vendingMachine, 0.03],
           [P.bench, 0.03],
-          [P.crateStack, 0.03],
+          [P.crateStack, 0.02],
         ]
       : [
           [P.utilityPole, 0.11],
@@ -466,6 +486,11 @@ export class World {
         put(P.candiBentar(rng, 1.0), 0, extent * 0.5, 0, 'main-square:gate')
         for (const s of [-1, 1]) put(P.guardianStatue(rng, 1), s * 2.4, extent * 0.5 - 1.7, 0)
         for (const s of [-1, 1]) put(P.penjor(rng), s * 5.4, extent * 0.3, s > 0 ? -Math.PI / 2 : Math.PI / 2)
+
+        // The banjar's drum tower — after the temple it is the tallest thing in
+        // any Balinese village, and it marks the centre from a long way off.
+        put(P.kulkulTower(rng, 1), -9.5, -5.5, Math.PI * 0.18, null, 1.7)
+        for (const s of [-1, 1]) put(P.umbulUmbul(rng, 1), s * 3.2, extent * 0.36, 0)
 
         put(P.columnSign(rng, 3.2), 7.5, 3.5, -0.4, 'main-square:board')
         this.anchor('main-square:flowers', toDir(-4.5, 2.5, new THREE.Vector3()))

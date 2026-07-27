@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { groundDecal, toon } from '../render/materials.js'
+import { DECAL_LAYER, groundDecal, toon } from '../render/materials.js'
 import { moveAlongSphere } from '../core/sphere.js'
 
 /**
@@ -150,6 +150,7 @@ export function buildRoad(dirs, terrain, opts = {}) {
     toSurfacePoints(rightDirs, terrain, 0.06),
     ups,
     roadColor,
+    { material: { layer: DECAL_LAYER.road } },
   )
   if (road) g.add(road)
 
@@ -195,6 +196,7 @@ export function buildRoad(dirs, terrain, opts = {}) {
         toSurfacePoints(r, terrain, 0.085),
         sUps,
         lineColor,
+        { material: { layer: DECAL_LAYER.marking } },
       )
       if (dash) g.add(dash)
     }
@@ -209,6 +211,7 @@ export function buildRoad(dirs, terrain, opts = {}) {
         toSurfacePoints(b, terrain, 0.085),
         ups,
         lineColor,
+        { material: { layer: DECAL_LAYER.marking } },
       )
       if (line) g.add(line)
     }
@@ -250,6 +253,7 @@ export function buildCrossing(centerDir, forwardDir, terrain, width, color) {
       [terrain.surfacePoint(fL, 0.095, new THREE.Vector3()), terrain.surfacePoint(fR, 0.095, new THREE.Vector3())],
       [up, up],
       color,
+      { material: { layer: DECAL_LAYER.marking } },
     )
     if (strip) g.add(strip)
   }

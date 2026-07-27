@@ -86,29 +86,35 @@ export class Animator {
     }
 
     // --- legs ---------------------------------------------------------
+    //
+    // Sign convention: a limb hangs down -Y, so a positive rotation.x carries
+    // it backwards and a negative one forwards. A knee only bends backwards,
+    // which means the shin angle must never go below zero — it was authored
+    // negative throughout, so the knees hinged the wrong way on every step and
+    // folded forwards in mid-air.
     for (const side of ['L', 'R']) {
       const s = side === 'L' ? 0 : Math.PI
       const leg = legs[side]
       const swing = Math.sin(p + s)
-      const lift = Math.max(0, Math.sin(p + s - 0.5))
+      const blend = Math.min(1, sp * 6)
 
-      const airPose = side === 'L' ? -0.9 : -0.45
-      leg.thigh.rotation.x = lerp(
-        idleLeg(this.idleTime, side),
-        swing * walkAmp * 0.85,
-        Math.min(1, sp * 6),
-      )
-      leg.thigh.rotation.x = lerp(leg.thigh.rotation.x, airPose, this.airborne)
+      // Thigh forward on the front half of the stride, back on the rear half.
+      const thighX = lerp(idleLeg(this.idleTime, side), -swing * walkAmp * 0.85, blend)
+      // Knee folds through the swing-through, straightens under load, and
+      // keeps a little slack so it never locks solid.
+      const kneeX = lerp(0.08, Math.max(0, Math.cos(p + s)) * walkAmp * 1.5 + 0.1, blend)
+
+      // Airborne: one leg tucked up in front, the other trailing, both bent.
+      const airThigh = side === 'L' ? -0.78 : 0.2
+      const airKnee = side === 'L' ? 1.25 : 0.8
+      const airFoot = side === 'L' ? 0.3 : 0.46
+
+      leg.thigh.rotation.x = lerp(thighX, airThigh, this.airborne)
       leg.thigh.rotation.z = 0
-
-      const knee = lift * walkAmp * 1.35 * (moving ? 1 : 0)
-      leg.shin.rotation.x = lerp(-knee, -1.35, this.airborne)
-      leg.foot.rotation.x = lerp(
-        0,
-        -swing * 0.28 + 0.12,
-        Math.min(1, sp * 6),
-      )
-      leg.foot.rotation.x = lerp(leg.foot.rotation.x, 0.5, this.airborne)
+      leg.shin.rotation.x = Math.max(0, lerp(kneeX, airKnee, this.airborne))
+      // Keep the sole roughly level with the ground instead of pointing
+      // wherever the leg happens to finish.
+      leg.foot.rotation.x = lerp(-(thighX + kneeX) * 0.45, airFoot, this.airborne)
     }
 
     // --- arms ---------------------------------------------------------
@@ -134,9 +140,11 @@ export class Animator {
       upperX = lerp(upperX, -0.28, this.carryPose * (1 - sp * 0.6))
       upperZ = lerp(upperZ, sgn * 0.1, this.carryPose)
 
-      // In the air, arms go up.
-      upperX = lerp(upperX, -2.2, this.airborne)
-      foreX = lerp(foreX, -0.45, this.airborne)
+      // In the air, arms come up for balance — not straight over the head,
+      // which is what -2.2 rad was doing.
+      upperX = lerp(upperX, -1.15, this.airborne)
+      upperZ = lerp(upperZ, sgn * 0.42, this.airborne)
+      foreX = lerp(foreX, -0.62, this.airborne)
 
       // Emote: a big wave with the right arm.
       if (this.emote > 0 && side === 'R') {
