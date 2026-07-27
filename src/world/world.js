@@ -134,7 +134,7 @@ export class World {
 
     // --- wilderness ---------------------------------------------------
     this.root.add(this.buildWilderness())
-    await tick('planting trees')
+    await tick('planting the jungle')
 
     this.root.traverse((o) => {
       if (o.isMesh && o !== ground && o !== this.ocean) o.receiveShadow = true
@@ -279,26 +279,38 @@ export class World {
   makeBuilding(zone, rng, lot) {
     const opts = { width: Math.min(lot.width, 10), depth: Math.min(lot.depth, 10) }
     switch (zone.biome) {
-      case 'town':
-        return rngChance(rng, 0.65) ? P.townBuilding(rng, opts) : P.house(rng, opts)
-      case 'industry':
-        if (rngChance(rng, 0.35)) return P.corpTower(rng, opts)
-        if (rngChance(rng, 0.5)) return P.factoryShed(rng)
-        return P.silos(rng)
+      case 'town': {
+        // What you see from an Ubud street is mostly wall and gate, with the
+        // odd two-storey shophouse and a warung wedged into the gaps.
+        const r = rng()
+        if (r < 0.56) return P.balineseCompound(rng, opts)
+        if (r < 0.82) return P.townBuilding(rng, { ...opts, floors: rngInt(rng, 2, 3), color: BUILD.cream })
+        return P.warung(rng)
+      }
+      case 'industry': {
+        const r = rng()
+        if (r < 0.24) return P.corpTower(rng, opts)
+        if (r < 0.42) return P.factoryShed(rng)
+        if (r < 0.5) return P.silos(rng)
+        if (r < 0.78) return P.townBuilding(rng, { ...opts, floors: rngInt(rng, 2, 4) })
+        return P.balineseCompound(rng, opts)
+      }
       case 'beach':
-        return rngChance(rng, 0.7) ? P.house(rng, { ...opts, color: BUILD.bone, roof: BUILD.roofSlate }) : null
+        return rngChance(rng, 0.55) ? P.bale(rng, opts) : rngChance(rng, 0.5) ? P.warung(rng) : null
       case 'forest':
-        return rngChance(rng, 0.25) ? P.house(rng, { ...opts, color: BUILD.wood, roof: BUILD.roofBrown }) : null
+        return rngChance(rng, 0.22) ? P.balineseCompound(rng, opts) : null
       case 'falls':
-        return rngChance(rng, 0.3) ? P.house(rng, opts) : null
+        return rngChance(rng, 0.28) ? (rngChance(rng, 0.5) ? P.warung(rng) : P.bale(rng, opts)) : null
       case 'temple':
-        return rngChance(rng, 0.25) ? P.house(rng, { ...opts, color: BUILD.bone, roof: BUILD.roofSlate }) : null
+        return rngChance(rng, 0.22) ? P.bale(rng, opts) : null
+      case 'rice':
+        return rngChance(rng, 0.16) ? (rngChance(rng, 0.5) ? P.bale(rng, opts) : P.warung(rng)) : null
       case 'cliff':
-        return rngChance(rng, 0.5) ? P.house(rng, { ...opts, color: BUILD.blush, roof: BUILD.roofRed }) : null
+        return rngChance(rng, 0.4) ? P.balineseCompound(rng, opts) : null
       case 'graveyard':
-        return rngChance(rng, 0.2) ? P.house(rng, { ...opts, color: BUILD.ash }) : null
+        return rngChance(rng, 0.14) ? P.bale(rng, opts) : null
       default:
-        return P.house(rng, opts)
+        return P.balineseCompound(rng, opts)
     }
   }
 
@@ -306,28 +318,33 @@ export class World {
     const urban = zone.biome === 'town' || zone.biome === 'industry'
     const table = urban
       ? [
-          [P.utilityPole, 0.16],
-          [P.roadSign, 0.13],
-          [P.vendingMachine, 0.09],
-          [P.postBox, 0.05],
-          [P.trafficCone, 0.11],
-          [P.trashBin, 0.07],
-          [P.planter, 0.11],
-          [P.bicycle, 0.08],
-          [P.streetLamp, 0.07],
-          [P.bench, 0.04],
-          [P.moped, 0.04],
-          [P.crateStack, 0.05],
+          [P.utilityPole, 0.13],
+          [P.penjor, 0.11],
+          [P.moped, 0.1],
+          [P.roadSign, 0.07],
+          [P.canang, 0.09],
+          [P.balineseShrine, 0.06],
+          [P.planter, 0.09],
+          [P.trafficCone, 0.06],
+          [P.trashBin, 0.04],
+          [P.bicycle, 0.05],
+          [P.streetLamp, 0.05],
+          [P.tedung, 0.05],
+          [P.vendingMachine, 0.04],
+          [P.bench, 0.03],
+          [P.crateStack, 0.03],
         ]
       : [
-          [P.utilityPole, 0.14],
-          [P.roadSign, 0.08],
-          [P.trafficCone, 0.08],
-          [P.planter, 0.1],
-          [P.bench, 0.08],
-          [P.bush, 0.28],
-          [P.rock, 0.16],
-          [P.grassTuft, 0.08],
+          [P.utilityPole, 0.11],
+          [P.penjor, 0.09],
+          [P.canang, 0.09],
+          [P.roadSign, 0.05],
+          [P.planter, 0.08],
+          [P.bench, 0.06],
+          [P.balineseShrine, 0.06],
+          [P.bush, 0.22],
+          [P.rock, 0.14],
+          [P.grassTuft, 0.1],
         ]
     let r = rng()
     for (const [fn, weight] of table) {
@@ -335,6 +352,7 @@ export class World {
       if (r <= 0) {
         const prop = fn(rng)
         if (fn === P.vendingMachine || fn === P.postBox) prop.userData.solid = 0.8
+        if (fn === P.balineseShrine) prop.userData.solid = 0.85
         return prop
       }
     }
@@ -343,24 +361,56 @@ export class World {
 
   makeNatureProp(zone, rng, scale) {
     switch (zone.biome) {
-      case 'beach':
-        return rngChance(rng, 0.35)
-          ? P.palm(rng)
-          : rngChance(rng, 0.5)
-            ? P.rock(rng, { scale: scale * 0.7, color: GROUND.rock })
-            : P.grassTuft(rng)
-      case 'forest':
-        return rngChance(rng, 0.55) ? P.pine(rng, { scale }) : rngChance(rng, 0.6) ? P.tree(rng, { scale }) : P.bush(rng)
+      case 'beach': {
+        const r = rng()
+        if (r < 0.42) return P.palm(rng)
+        if (r < 0.54) return P.jukung(rng)
+        if (r < 0.66) return P.frangipani(rng, { scale: scale * 0.8 })
+        if (r < 0.82) return P.rock(rng, { scale: scale * 0.7, color: GROUND.rock })
+        return P.grassTuft(rng)
+      }
+      case 'forest': {
+        const r = rng()
+        if (r < 0.16) return P.banyan(rng, { scale: scale * 1.1 })
+        if (r < 0.34) return P.palm(rng)
+        if (r < 0.72) return P.tree(rng, { scale })
+        if (r < 0.86) return P.frangipani(rng, { scale })
+        return P.bush(rng)
+      }
       case 'falls':
         return rngChance(rng, 0.4) ? P.tree(rng, { scale }) : rngChance(rng, 0.5) ? P.rock(rng, { scale }) : P.bush(rng)
-      case 'temple':
-        return rngChance(rng, 0.35) ? P.pine(rng, { scale }) : rngChance(rng, 0.5) ? P.rock(rng, { scale: scale * 1.3 }) : P.stoneLantern(rng, 0.8)
+      case 'temple': {
+        const r = rng()
+        if (r < 0.3) return P.frangipani(rng, { scale })
+        if (r < 0.45) return P.tedung(rng, 0.85)
+        if (r < 0.6) return P.balineseShrine(rng, 0.7)
+        if (r < 0.8) return P.rock(rng, { scale: scale * 1.3 })
+        return P.bush(rng)
+      }
+      case 'rice': {
+        // The big terrace flights are placed by hand in addLandmarks so they
+        // step down the ridge in order; these are the odds and ends between.
+        const r = rng()
+        if (r < 0.14) return P.riceTerrace(rng, { steps: rngInt(rng, 3, 5), width: rngRange(rng, 7, 9) })
+        if (r < 0.32) return P.palm(rng)
+        if (r < 0.42) return P.balineseShrine(rng, 0.6)
+        if (r < 0.52) return P.frangipani(rng, { scale: scale * 0.9 })
+        if (r < 0.72) return P.bush(rng)
+        return P.grassTuft(rng)
+      }
       case 'industry':
-        return rngChance(rng, 0.5) ? P.crateStack(rng) : P.rock(rng, { scale: scale * 0.7, color: GROUND.rockDark })
-      case 'graveyard':
-        return rngChance(rng, 0.62) ? P.gravestone(rng) : rngChance(rng, 0.5) ? P.tree(rng, { scale, leaf: NATURE.leafDark }) : P.bush(rng)
+        return rngChance(rng, 0.4) ? P.crateStack(rng) : rngChance(rng, 0.4) ? P.palm(rng) : P.rock(rng, { scale: scale * 0.7, color: GROUND.rockDark })
+      case 'graveyard': {
+        // A setra is not a lawn of headstones — it is frangipani and banyan
+        // with a few shrines underneath.
+        const r = rng()
+        if (r < 0.4) return P.frangipani(rng, { scale })
+        if (r < 0.52) return P.banyan(rng, { scale: scale * 0.9 })
+        if (r < 0.74) return P.gravestone(rng)
+        return P.bush(rng)
+      }
       case 'cliff':
-        return rngChance(rng, 0.5) ? P.rock(rng, { scale: scale * 1.2, color: 0xa8664f }) : P.bush(rng)
+        return rngChance(rng, 0.45) ? P.rock(rng, { scale: scale * 1.2, color: 0xc0b393 }) : rngChance(rng, 0.4) ? P.frangipani(rng, { scale: scale * 0.8 }) : P.bush(rng)
       default:
         return rngChance(rng, 0.4) ? P.tree(rng, { scale }) : rngChance(rng, 0.5) ? P.bush(rng) : P.flowerPatch(rng)
     }
@@ -368,43 +418,92 @@ export class World {
 
   addLandmarks(zone, g, rng, toDir, extent) {
     const t = this.terrain
-    const put = (obj, x, z, yaw = 0, anchorId = null) => {
+    // `solid` registers a collider. Landmarks that skip it are things the
+    // camera is allowed to sit inside — gates, statues, flat furniture. Any
+    // landmark with walls needs one, or the follow camera will happily reverse
+    // straight through it and fill the screen with the inside of a roof.
+    const put = (obj, x, z, yaw = 0, anchorId = null, solid = 0) => {
       const d = toDir(x, z, new THREE.Vector3())
       this.placeLocalYaw(obj, d, yaw)
       g.add(obj)
       if (anchorId) this.anchor(anchorId, d)
+      if (solid > 0) this.addObstacle(d, solid)
       return d
     }
 
     switch (zone.id) {
       case 'main-square': {
-        put(P.trafficLight(), 7, 7, Math.PI * 0.75)
-        put(P.trafficLight(), -7, -7, -Math.PI * 0.25)
-        const board = P.columnSign(rng, 3.2)
-        put(board, 0, extent * 0.22, 0, 'main-square:board')
+        // The player spawns here facing north, which puts the camera boom at
+        // roughly (0, -8.5) local. Everything with a wall stays out of that
+        // corridor, and the plaza anchor is the open ground it points at.
+        this.anchor('main-square:plaza', zone.dir)
         this.anchor('main-square:center', zone.dir)
-        this.anchor('main-square:flowers', toDir(-5.5, 3.5, new THREE.Vector3()))
-        this.anchor('main-square:office', toDir(6.5, -4, new THREE.Vector3()))
-        this.anchor('main-square:depot', toDir(0, -extent * 0.42, new THREE.Vector3()))
+
+        // The banyan on the crossroads is the centre of any Balinese village —
+        // the market, the temple and the road arrange themselves around it.
+        put(P.banyan(rng, { scale: 2.0 }), -6.5, 5.5, 0, null, 2.2)
+
+        put(P.candiBentar(rng, 1.0), 0, extent * 0.5, 0, 'main-square:gate')
+        for (const s of [-1, 1]) put(P.guardianStatue(rng, 1), s * 2.4, extent * 0.5 - 1.7, 0)
+        for (const s of [-1, 1]) put(P.penjor(rng), s * 5.4, extent * 0.3, s > 0 ? -Math.PI / 2 : Math.PI / 2)
+
+        put(P.columnSign(rng, 3.2), 7.5, 3.5, -0.4, 'main-square:board')
+        this.anchor('main-square:flowers', toDir(-4.5, 2.5, new THREE.Vector3()))
+        put(P.warung(rng), -7.5, 0.5, Math.PI * 0.55, null, 2.4)
+        this.anchor('main-square:office', toDir(7.0, -1.5, new THREE.Vector3()))
+
+        // Depot sits off the spawn axis so the camera never reverses into it.
         const depot = P.townBuilding(rng, { width: 9, depth: 7, floors: 2, color: BUILD.cream })
-        put(depot, 0, -extent * 0.55, Math.PI)
+        put(depot, 8.0, -8.0, 0, null, 5.4)
+        this.anchor('main-square:depot', toDir(8.0, -3.6, new THREE.Vector3()))
         break
       }
       case 'back-streets': {
         this.anchor('back-streets:alley', toDir(3, 4, new THREE.Vector3()))
-        for (let i = 0; i < 6; i++) {
-          put(P.bicycle(rng), rngRange(rng, -10, 10), rngRange(rng, -10, 10), rng() * 6.28)
+        for (let i = 0; i < 5; i++) {
+          put(P.moped(rng), rngRange(rng, -10, 10), rngRange(rng, -10, 10), rng() * 6.28)
         }
+        for (let i = 0; i < 4; i++) {
+          put(P.penjor(rng), rngRange(rng, -11, 11), rngRange(rng, -11, 11), rng() * 6.28)
+        }
+        put(P.balineseShrine(rng, 1.1), -5, -5, Math.PI * 0.4)
         break
       }
       case 'seaside': {
         const lh = P.lighthouse(rng)
         const d = put(lh, extent * 0.55, extent * 0.35, 0, 'seaside:lighthouse')
         this.addObstacle(d, 2.4)
-        for (let i = 0; i < 9; i++) {
+        for (let i = 0; i < 11; i++) {
           put(P.palm(rng), rngRange(rng, -extent, extent), rngRange(rng, -extent, extent), rng() * 6.28)
         }
+        // Jukung hauled up the sand in a row, the way they are every morning.
+        for (let i = 0; i < 5; i++) {
+          put(P.jukung(rng), -7 + i * 3.4 + rngRange(rng, -0.6, 0.6), extent * 0.62 + rngRange(rng, -1.2, 1.2), rngRange(rng, -0.25, 0.25))
+        }
+        put(P.balineseShrine(rng, 1.0), -extent * 0.4, extent * 0.3, 0)
         this.anchor('seaside:pier', toDir(0, extent * 0.7, new THREE.Vector3()))
+        break
+      }
+      case 'rice-terrace': {
+        // Flights of terraces stepping down the ridge, with a subak water
+        // temple at the top where the irrigation is divided up.
+        for (let i = 0; i < 9; i++) {
+          const a = (i / 9) * Math.PI * 2
+          const r = rngRange(rng, 7, extent * 0.85)
+          put(
+            P.riceTerrace(rng, { steps: rngInt(rng, 4, 7), width: rngRange(rng, 9, 12) }),
+            Math.cos(a) * r,
+            Math.sin(a) * r,
+            a + Math.PI / 2,
+          )
+        }
+        const shrine = P.meruTower(rng, 3, 0.6)
+        const sd = put(shrine, 0, 2, Math.PI, 'rice-terrace:subak')
+        this.addObstacle(sd, 2.2)
+        put(P.candiBentar(rng, 0.7), 0, 8, 0)
+        for (const s of [-1, 1]) put(P.tedung(rng, 1), s * 2.6, 3.5, 0)
+        put(P.bale(rng, { width: 4, depth: 3.4 }), -8, -5, Math.PI * 0.3)
+        this.anchor('rice-terrace:hut', toDir(-8, -8, new THREE.Vector3()))
         break
       }
       case 'smelly-falls': {
@@ -423,15 +522,25 @@ export class World {
         break
       }
       case 'mountain-temple': {
-        const hall = P.templeHall(rng, 1.15)
-        const d = put(hall, 0, -4, Math.PI, 'mountain-temple:hall')
-        this.addObstacle(d, 6.5)
-        put(P.torii(rng, 1.25), 0, 11, 0, 'mountain-temple:gate')
+        // Besakih reads as a stack: gate, stairs, courtyard, then a row of meru
+        // getting taller toward the middle.
+        const meru = P.meruTower(rng, 11, 1.0)
+        const d = put(meru, 0, -6, Math.PI, 'mountain-temple:hall')
+        this.addObstacle(d, 3.2)
+        for (const [x, tiers] of [[-5.5, 7], [5.5, 7], [-10, 5], [10, 5]]) {
+          const m = P.meruTower(rng, tiers, 0.82)
+          const md = put(m, x, -6.5, Math.PI)
+          this.addObstacle(md, 2.4)
+        }
+
+        put(P.candiBentar(rng, 1.35), 0, 11, 0, 'mountain-temple:gate')
+        for (const s of [-1, 1]) put(P.guardianStatue(rng, 1.15), s * 3.2, 9.4, 0)
         for (let i = 0; i < 8; i++) {
           const side = i % 2 ? 1 : -1
-          put(P.stoneLantern(rng, 1), side * 3.4, 9 - Math.floor(i / 2) * 3.4, 0)
+          put(P.tedung(rng, 0.95), side * 3.6, 8 - Math.floor(i / 2) * 3.4, 0)
         }
-        put(P.stairs(14, 5, 0.24, 0.5), 0, 6, 0)
+        put(P.stairs(14, 5, 0.24, 0.5, BUILD.paras), 0, 6, 0)
+        for (const s of [-1, 1]) put(P.balineseWall(9, 1.6), s * 8, 0, Math.PI / 2)
         this.anchor('mountain-temple:base', toDir(0, extent * 0.75, new THREE.Vector3()))
         break
       }
@@ -445,19 +554,27 @@ export class World {
         break
       }
       case 'red-cliff': {
-        const h = P.house(rng, { width: 7, depth: 6.5, height: 4.4, color: ACCENT.deepRed, roof: BUILD.roofSlate })
+        // A clifftop compound with its own gate, looking straight out to sea.
+        const h = P.balineseCompound(rng, { width: 9, depth: 8 })
         const d = put(h, 0, 0, Math.PI, 'red-cliff:house')
-        this.addObstacle(d, 4.2)
+        this.addObstacle(d, 4.6)
+        put(P.meruTower(rng, 3, 0.7), 0, -7.5, Math.PI)
         put(P.guardRail(9, rng), 0, 8, 0)
+        for (const s of [-1, 1]) put(P.frangipani(rng, { scale: 1.1 }), s * 6, 5, 0)
         break
       }
       case 'lucero-graveyard': {
-        for (let i = 0; i < 26; i++) {
+        for (let i = 0; i < 18; i++) {
           const row = Math.floor(i / 6)
           const col = i % 6
           put(P.gravestone(rng), -8 + col * 3.2 + rngRange(rng, -0.4, 0.4), -6 + row * 4 + rngRange(rng, -0.5, 0.5), rngRange(rng, -0.2, 0.2))
         }
-        put(P.torii(rng, 0.9), 0, extent * 0.6, 0, 'lucero-graveyard:gate')
+        const tree = P.banyan(rng, { scale: 2.0 })
+        const bd = put(tree, 5, -2, 0)
+        this.addObstacle(bd, 2.0)
+        put(P.candiBentar(rng, 0.85), 0, extent * 0.6, 0, 'lucero-graveyard:gate')
+        for (const s of [-1, 1]) put(P.guardianStatue(rng, 0.9), s * 2.2, extent * 0.6 - 1.4, 0)
+        put(P.balineseShrine(rng, 1.15), -5, 3, 0)
         this.anchor('lucero-graveyard:center', zone.dir)
         break
       }
@@ -575,11 +692,15 @@ export class World {
       }
       if (inZone) continue
 
+      // Vegetation by altitude: palms and jepun on the coast, jungle and paddy
+      // through the middle, casuarina and bare rock up on the volcanic flanks.
       let prop
-      if (h > 20) prop = rngChance(rng, 0.6) ? P.rock(rng, { scale: rngRange(rng, 0.6, 2.2) }) : P.pine(rng, { scale: rngRange(rng, 0.7, 1.2) })
-      else if (h < 2.6) prop = rngChance(rng, 0.5) ? P.palm(rng) : P.rock(rng, { scale: rngRange(rng, 0.4, 1.2) })
-      else if (rngChance(rng, 0.45)) prop = P.tree(rng, { scale: rngRange(rng, 0.8, 1.7) })
-      else if (rngChance(rng, 0.4)) prop = P.pine(rng, { scale: rngRange(rng, 0.8, 1.6) })
+      if (h > 20) prop = rngChance(rng, 0.62) ? P.rock(rng, { scale: rngRange(rng, 0.6, 2.2) }) : P.pine(rng, { scale: rngRange(rng, 0.7, 1.2) })
+      else if (h < 2.6) prop = rngChance(rng, 0.55) ? P.palm(rng) : rngChance(rng, 0.4) ? P.frangipani(rng, { scale: rngRange(rng, 0.8, 1.1) }) : P.rock(rng, { scale: rngRange(rng, 0.4, 1.2) })
+      else if (rngChance(rng, 0.38)) prop = P.tree(rng, { scale: rngRange(rng, 0.8, 1.7) })
+      else if (rngChance(rng, 0.22)) prop = P.palm(rng)
+      else if (rngChance(rng, 0.07)) prop = P.riceTerrace(rng, { steps: rngInt(rng, 3, 5), width: rngRange(rng, 7, 10) })
+      else if (rngChance(rng, 0.22)) prop = P.frangipani(rng, { scale: rngRange(rng, 0.8, 1.3) })
       else prop = rngChance(rng, 0.5) ? P.bush(rng) : P.grassTuft(rng)
 
       this.placeLocalYaw(prop, dir.clone(), rng() * Math.PI * 2)

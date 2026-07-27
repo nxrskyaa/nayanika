@@ -8,7 +8,8 @@ export default defineConfig({
     chunkSizeWarningLimit: 2000,
   },
   server: {
-    port: 5173,
+    // Honour PORT so several dev servers can share the machine.
+    port: Number(process.env.PORT) || 5173,
     host: true,
   },
 })

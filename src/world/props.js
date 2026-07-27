@@ -635,6 +635,454 @@ export function lighthouse(rng) {
 }
 
 /* ------------------------------------------------------------------ */
+/* bali                                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Candi bentar — the split gate. A tower sliced down the middle and pulled
+ * apart, so you walk through the cut. Deliberately left without a footprint:
+ * the whole point of a gate is that you can go through it.
+ */
+export function candiBentar(rng, scale = 1) {
+  const g = group()
+  const gap = 1.6 * scale
+  const w = 1.45 * scale
+  const d = 1.9 * scale
+  const h = 5.2 * scale
+  const tiers = 7
+  const tierH = (h - 0.5 * scale) / tiers
+
+  for (const s of [-1, 1]) {
+    const x = s * (gap / 2 + w / 2)
+    g.add(at(box(w * 1.26, 0.5 * scale, d * 1.22, BUILD.parasDark), x, 0.25 * scale, 0))
+
+    let y = 0.5 * scale
+    for (let i = 0; i < tiers; i++) {
+      const t = i / (tiers - 1)
+      const tw = w * (1 - t * 0.44)
+      const td = d * (1 - t * 0.3)
+      g.add(at(box(tw, tierH * 0.84, td, i % 2 ? BUILD.paras : BUILD.parasDark), x, y + tierH * 0.42, 0))
+      g.add(at(box(tw * 1.12, tierH * 0.18, td * 1.08, BUILD.paras), x, y + tierH * 0.9, 0))
+      y += tierH
+    }
+
+    g.add(at(box(w * 0.4, 0.4 * scale, d * 0.48, BUILD.paras), x, y + 0.2 * scale, 0))
+    g.add(at(cone(0.19 * scale, 0.46 * scale, 6, BUILD.gold), x, y + 0.62 * scale, 0))
+
+    // The sliced face is flat and plain — that is what makes it read as a cut.
+    g.add(at(box(0.07 * scale, h * 0.6, d * 0.52, BUILD.parasDark), x - s * (w / 2 + 0.03 * scale), h * 0.38, 0))
+  }
+
+  g.add(at(box(gap + w * 2 + 0.7 * scale, 0.16 * scale, d * 1.5, BUILD.paras), 0, 0.08 * scale, 0))
+  return g
+}
+
+/** Meru — the tiered shrine. Odd number of ijuk roofs, tallest for the highest gods. */
+export function meruTower(rng, tiers = 7, scale = 1) {
+  const g = group()
+  const baseW = 3.2 * scale
+
+  g.add(at(box(baseW * 1.34, 0.7 * scale, baseW * 1.34, BUILD.parasDark), 0, 0.35 * scale, 0))
+  g.add(at(box(baseW * 1.14, 0.5 * scale, baseW * 1.14, BUILD.paras), 0, 0.95 * scale, 0))
+  g.add(at(box(baseW * 0.74, 1.5 * scale, baseW * 0.74, BUILD.teakDark), 0, 1.95 * scale, 0))
+  g.add(at(box(baseW * 0.4, 0.9 * scale, 0.08 * scale, BUILD.gold), 0, 1.85 * scale, baseW * 0.38))
+
+  let y = 2.7 * scale
+  for (let i = 0; i < tiers; i++) {
+    const t = i / tiers
+    const w = baseW * (1 - t * 0.6)
+    const rh = 0.44 * scale
+    g.add(at(cone(w * 0.8, rh * 1.5, 4, i % 2 ? BUILD.ijuk : BUILD.ijukLight), 0, y + rh * 0.75, 0, 0, Math.PI / 4, 0))
+    g.add(at(box(w * 0.18, 0.32 * scale, w * 0.18, BUILD.teakDark), 0, y + rh * 1.5 + 0.16 * scale, 0))
+    y += rh * 1.5 + 0.32 * scale
+  }
+  g.add(at(cone(0.17 * scale, 0.6 * scale, 6, BUILD.gold), 0, y + 0.3 * scale, 0))
+
+  g.userData.footprint = baseW * 0.85
+  return g
+}
+
+/**
+ * Penjor — the bamboo pole that arcs over the road at Galungan, with a woven
+ * palm tassel hanging off the tip.
+ */
+export function penjor(rng, scale = 1) {
+  const g = group()
+  const h = rngRange(rng, 5.2, 6.6) * scale
+  const lean = rngRange(rng, 0.85, 1.35) * scale
+  const segs = 12
+  const droop = (t) => lean * t * t * 2.4
+
+  for (let i = 0; i < segs; i++) {
+    const t0 = i / segs
+    const t1 = (i + 1) / segs
+    const y0 = h * t0
+    const y1 = h * t1
+    const z0 = droop(t0)
+    const z1 = droop(t1)
+    const dy = y1 - y0
+    const dz = z1 - z0
+    const len = Math.hypot(dy, dz)
+    const seg = at(
+      cyl(0.045 * scale * (1 - t1 * 0.55), 0.05 * scale * (1 - t0 * 0.5), len, 6, BUILD.bamboo),
+      0,
+      (y0 + y1) / 2,
+      (z0 + z1) / 2,
+    )
+    seg.rotation.x = Math.atan2(dz, dy)
+    g.add(seg)
+  }
+
+  const tipY = h
+  const tipZ = droop(1)
+  g.add(at(box(0.32 * scale, 0.22 * scale, 0.32 * scale, BUILD.gold), 0, tipY - 0.08 * scale, tipZ))
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2
+    const strip = at(
+      box(0.07 * scale, rngRange(rng, 0.7, 1.15) * scale, 0.035 * scale, i % 2 ? NATURE.palmFrond : BUILD.bamboo),
+      Math.cos(a) * 0.11 * scale,
+      tipY - 0.62 * scale,
+      tipZ + Math.sin(a) * 0.11 * scale,
+    )
+    strip.rotation.z = rngRange(rng, -0.14, 0.14)
+    g.add(strip)
+  }
+
+  // Sanggah cucuk: the little bamboo altar at the foot of the pole.
+  g.add(at(cyl(0.03 * scale, 0.03 * scale, 1.3 * scale, 5, BUILD.bambooDark), 0, 0.65 * scale, 0.24 * scale))
+  g.add(at(box(0.34 * scale, 0.3 * scale, 0.28 * scale, BUILD.bamboo), 0, 1.42 * scale, 0.24 * scale))
+  g.add(at(cyl(0.08 * scale, 0.08 * scale, 0.34 * scale, 7, ACCENT.polengWhite), 0, 0.5 * scale, 0))
+  return g
+}
+
+/** Tedung — the fringed ceremonial parasol that stands beside every shrine. */
+export function tedung(rng, scale = 1) {
+  const g = group()
+  const h = 2.9 * scale
+  const c = rngPick(rng, [BUILD.gold, ACCENT.polengWhite, ACCENT.deepRed, ACCENT.saffron])
+  g.add(at(cyl(0.05 * scale, 0.07 * scale, h, 7, BUILD.teakDark), 0, h / 2, 0))
+  g.add(at(cone(0.92 * scale, 0.6 * scale, 12, c), 0, h - 0.08 * scale, 0))
+  g.add(at(cyl(0.92 * scale, 0.92 * scale, 0.06 * scale, 12, c), 0, h - 0.4 * scale, 0))
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2
+    g.add(
+      at(
+        box(0.16 * scale, 0.34 * scale, 0.04 * scale, ACCENT.polengWhite),
+        Math.cos(a) * 0.88 * scale,
+        h - 0.58 * scale,
+        Math.sin(a) * 0.88 * scale,
+        0,
+        -a,
+        0,
+      ),
+    )
+  }
+  g.add(at(sphere(0.09 * scale, BUILD.gold, 6), 0, h + 0.26 * scale, 0))
+  return g
+}
+
+/** Pelinggih — a single stone shrine under a little ijuk cap. */
+export function balineseShrine(rng, scale = 1) {
+  const g = group()
+  g.add(at(box(1.3 * scale, 0.34 * scale, 1.1 * scale, BUILD.parasDark), 0, 0.17 * scale, 0))
+  g.add(at(box(0.95 * scale, 1.5 * scale, 0.8 * scale, BUILD.paras), 0, 1.06 * scale, 0))
+  g.add(at(box(1.06 * scale, 0.16 * scale, 0.9 * scale, BUILD.parasDark), 0, 0.62 * scale, 0))
+  g.add(at(box(1.06 * scale, 0.16 * scale, 0.9 * scale, BUILD.parasDark), 0, 1.62 * scale, 0))
+  g.add(at(box(0.5 * scale, 0.66 * scale, 0.08 * scale, INK), 0, 1.16 * scale, 0.42 * scale))
+  g.add(at(cone(0.86 * scale, 0.7 * scale, 4, BUILD.ijuk), 0, 2.14 * scale, 0, 0, Math.PI / 4, 0))
+  g.add(at(cone(0.13 * scale, 0.34 * scale, 6, BUILD.gold), 0, 2.62 * scale, 0))
+  if (rngChance(rng, 0.7)) {
+    g.add(at(box(1.0 * scale, 0.3 * scale, 0.85 * scale, ACCENT.polengWhite), 0, 0.44 * scale, 0))
+  }
+  g.userData.footprint = 0.9 * scale
+  return g
+}
+
+/** Dwarapala — the guardian at the gate, wrapped in poleng check. */
+export function guardianStatue(rng, scale = 1) {
+  const g = group()
+  g.add(at(box(0.82 * scale, 0.3 * scale, 0.72 * scale, BUILD.parasDark), 0, 0.15 * scale, 0))
+  g.add(at(box(0.62 * scale, 0.9 * scale, 0.5 * scale, BUILD.paras), 0, 0.75 * scale, 0))
+  g.add(at(box(0.68 * scale, 0.42 * scale, 0.56 * scale, ACCENT.polengWhite), 0, 0.6 * scale, 0))
+  for (const s of [-1, 1]) {
+    g.add(at(box(0.16 * scale, 0.52 * scale, 0.16 * scale, BUILD.paras), s * 0.36 * scale, 0.86 * scale, 0.07 * scale))
+  }
+  g.add(at(sphere(0.25 * scale, BUILD.paras, 8), 0, 1.4 * scale, 0))
+  g.add(at(cone(0.25 * scale, 0.42 * scale, 6, BUILD.paras), 0, 1.78 * scale, 0))
+  return g
+}
+
+/** Bale — the open pavilion: brick platform, teak posts, alang-alang hip roof. */
+export function bale(rng, opts = {}) {
+  const g = group()
+  const w = opts.width ?? rngRange(rng, 3.6, 5.2)
+  const d = opts.depth ?? rngRange(rng, 3.2, 4.4)
+  const plat = 0.55
+  const postH = 2.1
+
+  g.add(at(box(w, plat, d, BUILD.bata), 0, plat / 2, 0))
+  g.add(at(box(w * 1.08, 0.12, d * 1.08, BUILD.paras), 0, plat + 0.06, 0))
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      g.add(at(cyl(0.09, 0.11, postH, 7, BUILD.teakDark), sx * w * 0.4, plat + postH / 2, sz * d * 0.4))
+    }
+  }
+  g.add(at(box(w * 0.9, 0.14, d * 0.9, BUILD.teak), 0, plat + postH, 0))
+
+  const rise = rngRange(rng, 1.3, 1.9)
+  g.add(at(cone(Math.max(w, d) * 0.8, rise, 4, BUILD.thatch), 0, plat + postH + rise * 0.5 + 0.08, 0, 0, Math.PI / 4, 0))
+  g.add(at(box(w * 0.22, 0.18, d * 0.22, BUILD.thatchDark), 0, plat + postH + rise + 0.06, 0))
+
+  g.userData.footprint = Math.max(w, d) * 0.66
+  return g
+}
+
+/** A run of red-brick compound wall with paras coping and pilasters. */
+export function balineseWall(length = 5, height = 1.75) {
+  const g = group()
+  g.add(at(box(length, 0.24, 0.5, BUILD.paras), 0, 0.12, 0))
+  g.add(at(box(length, height, 0.36, BUILD.bata), 0, 0.24 + height / 2, 0))
+  g.add(at(box(length + 0.14, 0.18, 0.5, BUILD.paras), 0, 0.24 + height + 0.09, 0))
+  const n = Math.max(2, Math.round(length / 2.4))
+  for (let i = 0; i < n; i++) {
+    const x = -length / 2 + (i / (n - 1)) * length
+    g.add(at(box(0.3, height * 0.94, 0.46, BUILD.paras), x, 0.24 + height * 0.47, 0))
+  }
+  return g
+}
+
+/**
+ * A walled family compound: brick walls, an angkul-angkul doorway, a bale and
+ * a household shrine in the corner. This is what a Balinese "house" actually
+ * looks like from the road — you see the wall and the gate, not the building.
+ */
+export function balineseCompound(rng, opts = {}) {
+  const g = group()
+  const w = Math.min(opts.width ?? rngRange(rng, 7, 9.5), 10)
+  const d = Math.min(opts.depth ?? rngRange(rng, 7, 9.5), 10)
+  const wallH = 1.75
+
+  const run = (len, x, z, ry) => {
+    const seg = balineseWall(len, wallH)
+    seg.position.set(x, 0, z)
+    seg.rotation.y = ry
+    g.add(seg)
+  }
+  run(d, -w / 2, 0, Math.PI / 2)
+  run(d, w / 2, 0, Math.PI / 2)
+  run(w, 0, -d / 2, 0)
+
+  const gateW = 1.9
+  const side = (w - gateW) / 2
+  run(side, -(gateW + side) / 2, d / 2, 0)
+  run(side, (gateW + side) / 2, d / 2, 0)
+
+  const gate = candiBentar(rng, 0.5)
+  gate.position.set(0, 0, d / 2)
+  g.add(gate)
+
+  const b = bale(rng, { width: w * 0.5, depth: d * 0.42 })
+  b.position.set(-w * 0.14, 0, -d * 0.12)
+  g.add(b)
+
+  const shr = balineseShrine(rng, 0.78)
+  shr.position.set(w * 0.29, 0, -d * 0.3)
+  g.add(shr)
+
+  if (rngChance(rng, 0.65)) {
+    const f = frangipani(rng, { scale: 0.9 })
+    f.position.set(w * 0.26, 0, d * 0.14)
+    g.add(f)
+  }
+
+  g.userData.footprint = Math.max(w, d) * 0.62
+  return g
+}
+
+/** Warung — a roadside food stall with a counter and a thatch awning. */
+export function warung(rng) {
+  const g = group()
+  const w = rngRange(rng, 3.0, 4.2)
+  const d = rngRange(rng, 2.4, 3.2)
+  const h = 2.3
+
+  g.add(at(box(w, 0.24, d, BUILD.concrete), 0, 0.12, 0))
+  g.add(at(box(w, h, d * 0.5, rngPick(rng, [BUILD.cream, BUILD.bone, BUILD.mint])), 0, 0.24 + h / 2, -d * 0.25))
+  g.add(at(box(w * 0.94, 0.9, 0.5, BUILD.teak), 0, 0.69, d * 0.2))
+  g.add(at(box(w, 0.1, 0.62, BUILD.teakDark), 0, 1.17, d * 0.2))
+  for (const s of [-1, 1]) {
+    g.add(at(cyl(0.06, 0.07, 2.2, 6, BUILD.bambooDark), s * w * 0.45, 1.34, d * 0.42))
+  }
+  const roof = at(box(w * 1.18, 0.2, d * 1.25, BUILD.thatch), 0, 0.24 + h + 0.48, d * 0.08)
+  roof.rotation.x = -0.2
+  g.add(roof)
+  g.add(at(box(w * 1.22, 0.16, 0.24, BUILD.thatchDark), 0, 0.24 + h + 0.72, -d * 0.48))
+
+  for (let i = 0; i < rngInt(rng, 2, 4); i++) {
+    g.add(
+      at(
+        cyl(0.16, 0.19, 0.3, 8, rngPick(rng, [ACCENT.red, ACCENT.blue, ACCENT.amber, ACCENT.green])),
+        w * 0.36,
+        0.39 + i * 0.3,
+        d * 0.54,
+      ),
+    )
+  }
+  g.userData.footprint = Math.max(w, d) * 0.6
+  return g
+}
+
+/** Canang sari — the daily palm-leaf offering. Left on walls, steps, kerbs. */
+export function canang(rng) {
+  const g = group()
+  g.add(at(box(0.24, 0.05, 0.24, NATURE.banana), 0, 0.025, 0))
+  g.add(at(box(0.2, 0.03, 0.2, NATURE.palmFrond), 0, 0.06, 0))
+  const petals = [NATURE.frangipani, NATURE.bougainvillea, NATURE.hibiscus, NATURE.frangipaniHeart]
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2
+    g.add(at(sphere(0.045, petals[i], 6), Math.cos(a) * 0.06, 0.095, Math.sin(a) * 0.06))
+  }
+  g.add(at(cyl(0.01, 0.01, 0.17, 4, ACCENT.saffron), 0.02, 0.15, 0))
+  g.rotation.y = rng() * Math.PI * 2
+  return g
+}
+
+/** Jepun — frangipani. Bare grey limbs, dark leaf clusters, cream flowers. */
+export function frangipani(rng, opts = {}) {
+  const g = group()
+  const scale = opts.scale ?? rngRange(rng, 0.85, 1.3)
+  const trunkH = rngRange(rng, 1.5, 2.3) * scale
+  g.add(at(cyl(0.12 * scale, 0.2 * scale, trunkH, 7, NATURE.trunk), 0, trunkH / 2, 0))
+
+  const arms = rngInt(rng, 3, 5)
+  const up = new THREE.Vector3(0, 1, 0)
+  for (let i = 0; i < arms; i++) {
+    const a = (i / arms) * Math.PI * 2 + rng() * 0.6
+    const lean = rngRange(rng, 0.42, 0.78)
+    const len = rngRange(rng, 0.9, 1.5) * scale
+    const bx = Math.cos(a) * Math.sin(lean) * len
+    const bz = Math.sin(a) * Math.sin(lean) * len
+    const by = trunkH + Math.cos(lean) * len
+
+    const branch = cyl(0.055 * scale, 0.085 * scale, len, 6, NATURE.trunk)
+    branch.position.set(bx / 2, (trunkH + by) / 2, bz / 2)
+    branch.quaternion.setFromUnitVectors(up, new THREE.Vector3(bx, by - trunkH, bz).normalize())
+    g.add(branch)
+
+    const r = rngRange(rng, 0.5, 0.8) * scale
+    const leaves = sphere(r, NATURE.leafDark, 8)
+    leaves.scale.set(r * 1.15, r * 0.8, r * 1.15)
+    g.add(at(leaves, bx, by, bz))
+
+    for (let k = 0; k < 3; k++) {
+      g.add(
+        at(
+          sphere(0.085 * scale, k === 0 ? NATURE.frangipaniHeart : NATURE.frangipani, 6),
+          bx + rngRange(rng, -0.42, 0.42) * scale,
+          by + rngRange(rng, 0.08, 0.46) * scale,
+          bz + rngRange(rng, -0.42, 0.42) * scale,
+        ),
+      )
+    }
+  }
+  g.userData.footprint = 1.3 * scale
+  return g
+}
+
+/** Beringin — the banyan on the village crossroads, cloth-wrapped and enormous. */
+export function banyan(rng, opts = {}) {
+  const g = group()
+  const scale = opts.scale ?? rngRange(rng, 1.3, 2.0)
+  const trunkH = 2.6 * scale
+  g.add(at(cyl(0.4 * scale, 0.72 * scale, trunkH, 9, NATURE.trunkDark), 0, trunkH / 2, 0))
+  if (rngChance(rng, 0.55)) {
+    g.add(at(cyl(0.6 * scale, 0.66 * scale, 0.6 * scale, 9, ACCENT.polengWhite), 0, 1.0 * scale, 0))
+  }
+
+  const blobs = rngInt(rng, 6, 9)
+  for (let i = 0; i < blobs; i++) {
+    const a = (i / blobs) * Math.PI * 2 + rng() * 0.6
+    const rad = i === 0 ? 0 : rngRange(rng, 0.7, 1.9) * scale
+    const r = rngRange(rng, 1.0, 1.7) * scale
+    const s = sphere(r, rngPick(rng, [NATURE.leafDark, NATURE.leaf, NATURE.bush]), 9)
+    s.scale.set(r * 1.2, r * 0.8, r * 1.15)
+    g.add(at(s, Math.cos(a) * rad, trunkH + rngRange(rng, 0.3, 1.2) * scale, Math.sin(a) * rad))
+  }
+
+  // Aerial roots dropping straight out of the canopy.
+  for (let i = 0; i < rngInt(rng, 5, 10); i++) {
+    const a = rng() * Math.PI * 2
+    const rad = rngRange(rng, 0.9, 2.0) * scale
+    const top = trunkH + rngRange(rng, 0.2, 0.9) * scale
+    g.add(at(cyl(0.045 * scale, 0.07 * scale, top, 5, NATURE.trunkDark), Math.cos(a) * rad, top / 2, Math.sin(a) * rad))
+  }
+  g.userData.footprint = 2.2 * scale
+  return g
+}
+
+/**
+ * A flight of rice terraces. Each step is a mud bund holding back one paddy,
+ * and the paddies are at different points in the cycle — flooded, green, gold.
+ */
+export function riceTerrace(rng, opts = {}) {
+  const g = group()
+  const steps = opts.steps ?? rngInt(rng, 4, 7)
+  const width = Math.min(opts.width ?? rngRange(rng, 8, 12), 12)
+  const run = opts.run ?? rngRange(rng, 2.4, 3.4)
+  const rise = opts.rise ?? rngRange(rng, 0.45, 0.8)
+
+  for (let i = 0; i < steps; i++) {
+    const z = -steps * run * 0.5 + run * (i + 0.5)
+    const y = i * rise
+    g.add(at(box(width, rise + 0.14, 0.42, GROUND.dirt), 0, y + (rise + 0.14) / 2, z - run / 2))
+
+    const stage = rng()
+    const flooded = stage < 0.32
+    const ripe = stage > 0.72
+    const col = flooded ? GROUND.paddy : ripe ? GROUND.grassDry : GROUND.grass
+    g.add(at(box(width - 0.12, 0.12, run - 0.42, col), 0, y + rise + 0.06, z))
+
+    if (!flooded) {
+      const tufts = rngInt(rng, 6, 12)
+      for (let k = 0; k < tufts; k++) {
+        const th = rngRange(rng, 0.2, 0.42)
+        g.add(
+          at(
+            box(0.08, th, 0.08, ripe ? GROUND.grassDry : NATURE.leafLight),
+            rngRange(rng, -width * 0.45, width * 0.45),
+            y + rise + th / 2 + 0.06,
+            z + rngRange(rng, -run * 0.28, run * 0.28),
+          ),
+        )
+      }
+    }
+  }
+  g.userData.footprint = width * 0.34
+  return g
+}
+
+/** Jukung — the outrigger canoe pulled up on every beach on the island. */
+export function jukung(rng) {
+  const g = group()
+  const c = rngPick(rng, [ACCENT.blue, ACCENT.deepRed, ACCENT.white, ACCENT.amber, ACCENT.saffron])
+  g.add(at(box(0.55, 0.46, 4.0, c), 0, 0.46, 0))
+  g.add(at(box(0.62, 0.1, 4.1, ACCENT.polengWhite), 0, 0.72, 0))
+  g.add(at(box(0.5, 0.2, 4.1, BUILD.teakDark), 0, 0.28, 0))
+  g.add(at(cone(0.28, 0.95, 4, c), 0, 0.62, 2.24, Math.PI * 0.5, 0, 0))
+
+  for (const s of [-1, 1]) {
+    g.add(at(box(0.14, 0.14, 2.9, BUILD.bamboo), s * 1.45, 0.42, 0))
+    for (const z of [-1.05, 1.05]) {
+      const arm = at(box(1.55, 0.09, 0.09, BUILD.bambooDark), s * 0.78, 0.78, z)
+      arm.rotation.z = s * 0.22
+      g.add(arm)
+    }
+  }
+  g.userData.footprint = 1.9
+  return g
+}
+
+/* ------------------------------------------------------------------ */
 /* nature                                                               */
 /* ------------------------------------------------------------------ */
 

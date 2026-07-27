@@ -88,7 +88,9 @@ export class Player {
     _t2.addScaledVector(up, -up.dot(_t2))
     if (_t2.lengthSq() < 1e-8) _t2.copy(_north)
     _t2.normalize()
-    const right = _right.crossVectors(up, _t2).normalize()
+    // forward × up, not up × forward — the other order points west and hands
+    // you a game where D walks left.
+    const right = _right.crossVectors(_t2, up).normalize()
 
     const inputLen = Math.hypot(moveInput.x, moveInput.y)
     let hasInput = inputLen > 0.02 && !this.frozen && !this.talking

@@ -123,7 +123,8 @@ async function boot() {
 
   // Player.
   player = new Player(terrain, world, playerLook)
-  const spawnAnchor = world.getAnchor('main-square:depot') || ZONES[0].dir
+  // Open plaza, not the depot doorway — the camera boom needs clear ground.
+  const spawnAnchor = world.getAnchor('main-square:plaza') || ZONES[0].dir
   player.spawn(nudgeOutOfObstacles(spawnAnchor.clone(), 1.6))
   stage.scene.add(player.object)
   player.animator.onFootstep = (s) => audio.footstep(s, terrain.heightAt(player.dir) < 0.15 ? 'water' : 'ground')
@@ -228,7 +229,7 @@ function setCarrying(on, quest = null) {
     parcelMesh = null
   }
   if (on) {
-    const colour = quest?.parcel?.color ?? ACCENT.tan ?? 0xd9cba6
+    const colour = quest?.parcel?.color ?? ACCENT.saffron
     const g = new THREE.Group()
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, 0.17), toon(colour, { cache: false }))
     box.castShadow = true

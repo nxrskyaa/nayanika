@@ -25,6 +25,8 @@ const AMBIENCE = {
   temple: { cutoff: 480, q: 0.8, gain: 0.03, wobble: 0.22 },
   factory: { cutoff: 320, q: 2.2, gain: 0.055, wobble: 0.05 },
   base: { cutoff: 700, q: 0.6, gain: 0.03, wobble: 0.2 },
+  /** Open paddy: wind over water, insects, nothing solid to bounce off. */
+  rice: { cutoff: 1900, q: 0.9, gain: 0.038, wobble: 0.42 },
 }
 
 export class Audio {

@@ -127,18 +127,32 @@ export class Stage {
     this.pixelRatio = Math.min(window.devicePixelRatio || 1, RENDER.maxPixelRatio)
     this._time = 0
     this.resize()
+
+    // If the very first layout is 0x0 — a background tab, a hidden iframe, a
+    // window that has not composited yet — a one-shot resize() leaves the
+    // renderer stuck at nothing for the rest of the session. Watch the
+    // container instead of trusting that first measurement.
+    if (typeof ResizeObserver !== 'undefined') {
+      this._observer = new ResizeObserver(() => this.resize())
+      this._observer.observe(container)
+    }
   }
 
   _setupLights() {
     const sunDir = new THREE.Vector3(...SUN.direction).normalize()
 
-    this.ambient = new THREE.AmbientLight(0xa8dcd6, SUN.ambient * 0.34)
+    // three r155+ dropped the legacy light scaling, so these intensities are
+    // physical: a diffuse surface receives intensity * (1/PI) * albedo. The
+    // three lights below are budgeted to sum to just over PI, which puts a lit
+    // surface at roughly its authored colour and the shade side at ~0.62 of it.
+    // Scaling them down "to taste" is what makes the whole planet read muddy.
+    this.ambient = new THREE.AmbientLight(SKY.ambient, SUN.ambient * 0.72)
     this.scene.add(this.ambient)
 
-    this.hemi = new THREE.HemisphereLight(0xcdf2ec, 0x6f8a86, SUN.ambient * 0.16)
+    this.hemi = new THREE.HemisphereLight(SKY.hemiSky, SKY.hemiGround, SUN.ambient * 0.3)
     this.scene.add(this.hemi)
 
-    this.sun = new THREE.DirectionalLight(0xfff4e0, SUN.intensity * 0.33)
+    this.sun = new THREE.DirectionalLight(SUN.color, SUN.intensity)
     this.sun.position.copy(sunDir).multiplyScalar(260)
     this.sun.castShadow = true
     this.sun.shadow.mapSize.set(SUN.shadowMapSize, SUN.shadowMapSize)
@@ -218,6 +232,10 @@ export class Stage {
   resize() {
     const w = this.container.clientWidth || window.innerWidth
     const h = this.container.clientHeight || window.innerHeight
+    // Nothing to size to yet. Bail rather than baking in a zero — the observer
+    // will call back once the container actually has a box.
+    if (w < 1 || h < 1) return
+    if (w === this.width && h === this.height) return
     this.pixelRatio = Math.min(window.devicePixelRatio || 1, RENDER.maxPixelRatio)
 
     this.renderer.setPixelRatio(this.pixelRatio)
@@ -276,6 +294,7 @@ export class Stage {
   }
 
   dispose() {
+    this._observer?.disconnect()
     this.rtColor.dispose()
     this.rtNormal.dispose()
     this.renderer.dispose()

@@ -38,9 +38,15 @@ function paintSky(width = 2048, height = 1024, seed = 7) {
   const ctx = canvas.getContext('2d')
   const rng = makeRng(seed)
 
+  // Top of the canvas is the zenith. The horizon band is deliberately wide and
+  // pale — tropical haze sits low and thick, and it is what keeps the planet's
+  // curve from cutting the sky like a knife.
   const grad = ctx.createLinearGradient(0, 0, 0, height)
   grad.addColorStop(0.0, hex(SKY.zenith))
-  grad.addColorStop(0.42, hex(SKY.horizon))
+  grad.addColorStop(0.3, hex(SKY.zenith))
+  grad.addColorStop(0.46, hex(SKY.horizon))
+  grad.addColorStop(0.56, hex(SKY.cloudFar))
+  grad.addColorStop(0.68, hex(SKY.horizon))
   grad.addColorStop(1.0, hex(SKY.zenith))
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, width, height)

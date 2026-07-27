@@ -28,6 +28,7 @@ const FEATURES = [
   { dir: dirFromDeg(-8, 297), radius: 0.085, amount: 8, power: 1.8 }, // red cliff
   { dir: dirFromDeg(-13, 300), radius: 0.05, amount: -11, power: 1.2 }, // cliff drop
   { dir: dirFromDeg(2, 140), radius: 0.06, amount: 5.5, power: 1.7 }, // cave hill
+  { dir: dirFromDeg(27, 156), radius: 0.14, amount: 7, power: 1.9 }, // terrace ridge
   { dir: dirFromDeg(62, 20), radius: 0.26, amount: 12, power: 2.0 }, // north massif
   { dir: dirFromDeg(-64, 170), radius: 0.28, amount: 10, power: 2.0 }, // south massif
 ]
@@ -164,12 +165,16 @@ export class Terrain {
     const h = height
     let base
 
-    if (h < 0.9) base = _cA.setHex(GROUND.sand)
-    else if (h < 2.4) base = _cA.setHex(GROUND.sand).lerp(_cB.setHex(GROUND.grass), (h - 0.9) / 1.5)
-    else if (h < 13) base = _cA.setHex(GROUND.grass)
-    else if (h < 19) base = _cA.setHex(GROUND.grass).lerp(_cB.setHex(GROUND.rock), (h - 13) / 6)
-    else if (h < 26) base = _cA.setHex(GROUND.rock)
-    else base = _cA.setHex(GROUND.rock).lerp(_cB.setHex(GROUND.snow), Math.min(1, (h - 26) / 7))
+    // Bands read bottom to top: shore sand, wet green paddy country, drier
+    // upland, paras stone, then bare volcanic ash near the summit. No snow —
+    // this is a tropical island that happens to have a mountain on it.
+    if (h < 0.6) base = _cA.setHex(GROUND.sand)
+    else if (h < 2.2) base = _cA.setHex(GROUND.sand).lerp(_cB.setHex(GROUND.grass), (h - 0.6) / 1.6)
+    else if (h < 12) base = _cA.setHex(GROUND.grass)
+    else if (h < 17) base = _cA.setHex(GROUND.grass).lerp(_cB.setHex(GROUND.grassDry), (h - 12) / 5)
+    else if (h < 22) base = _cA.setHex(GROUND.grassDry).lerp(_cB.setHex(GROUND.rock), (h - 17) / 5)
+    else if (h < 28) base = _cA.setHex(GROUND.rock).lerp(_cB.setHex(GROUND.rockDark), (h - 22) / 6)
+    else base = _cA.setHex(GROUND.rockDark).lerp(_cB.setHex(GROUND.snow), Math.min(1, (h - 28) / 6))
 
     out.copy(base)
 
@@ -289,8 +294,10 @@ const BIOME_TINT = {
   falls: NATURE.bush,
   temple: GROUND.rock,
   industry: GROUND.rockDark,
-  cliff: 0xb2705a,
+  /** Uluwatu is pale limestone, not red rock. */
+  cliff: 0xcabf9f,
   graveyard: 0x93a486,
+  rice: GROUND.paddy,
 }
 
 const BIOME_STRENGTH = {
@@ -302,4 +309,5 @@ const BIOME_STRENGTH = {
   industry: 0.55,
   cliff: 0.62,
   graveyard: 0.55,
+  rice: 0.6,
 }

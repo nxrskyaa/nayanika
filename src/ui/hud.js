@@ -1,5 +1,5 @@
 import { EMOTES, WARDROBE, WARDROBE_LABELS } from '../game/content.js'
-import { GAME_TAGLINE, GAME_TITLE } from '../core/config.js'
+import { GAME_AUTHOR, GAME_CREDIT, GAME_TAGLINE, GAME_TITLE } from '../core/config.js'
 import {
   ICON_CHECKLIST,
   ICON_CLOSE,
@@ -44,6 +44,7 @@ export class Hud {
     this._buildEmotes()
     this._buildTouch()
     this._buildEnding()
+    this._buildCredit()
 
     this._zoneTimer = 0
     this._bannerTimer = 0
@@ -176,6 +177,7 @@ export class Hud {
       <div class="quest-row"><span class="tickbox">E</span><span class="label">Talk<span class="where">E, or click somebody</span></span></div>
       <div class="quest-row"><span class="tickbox">↔</span><span class="label">Look around<span class="where">Drag anywhere. Wheel to zoom</span></span></div>
       <div class="quest-row"><span class="tickbox">☰</span><span class="label">Deliveries<span class="where">The list, top right</span></span></div>
+      <div class="about">${GAME_TITLE} — ${GAME_CREDIT}</div>
     `
     this.helpPanel = panel
   }
@@ -205,6 +207,13 @@ export class Hud {
       </div>`
     this.ending.querySelector('button').addEventListener('click', () => this.hideEnding())
     this.layer.appendChild(this.ending)
+  }
+
+  /** Quiet corner byline. Sits under everything and never takes a click. */
+  _buildCredit() {
+    this.credit = el('div', null, `${GAME_TITLE} · by ${GAME_AUTHOR}`)
+    this.credit.id = 'credit'
+    this.layer.appendChild(this.credit)
   }
 
   /* ---------------------------------------------------------------- */
@@ -357,30 +366,49 @@ export class IntroScreen {
   constructor(root) {
     this.node = el('div')
     this.node.id = 'intro'
+    this.node.classList.add('loading')
     this.node.innerHTML = `
       <div class="inner">
         <h1>${GAME_TITLE}</h1>
         <p class="tag">${GAME_TAGLINE}</p>
-        <div class="bar"><span></span></div>
-        <div class="status">waking up…</div>
-        <button class="start">START YOUR ROUND</button>
-        <div class="hint">WASD to walk · shift to run · space to jump · E to talk</div>
+        <div class="swap">
+          <div class="loader">
+            <div class="bar"><span></span></div>
+            <div class="statusrow">
+              <span class="status">waking up</span>
+              <span class="pct">0%</span>
+            </div>
+          </div>
+          <button class="start">START YOUR ROUND</button>
+        </div>
+        <div class="hint">WASD to walk · shift to run · space to jump · E to talk · drag to look</div>
+        <div class="credit">${GAME_CREDIT}</div>
       </div>`
     root.appendChild(this.node)
     this.fill = this.node.querySelector('.bar span')
     this.status = this.node.querySelector('.status')
+    this.pct = this.node.querySelector('.pct')
     this.startBtn = this.node.querySelector('.start')
+    /** Progress never walks backwards, however the caller reports it. */
+    this._shown = 0
   }
 
   setProgress(p, label) {
-    this.fill.style.width = `${Math.round(p * 100)}%`
-    if (label) this.status.textContent = `${label}…`
+    this._shown = Math.max(this._shown, Math.min(1, p))
+    this.fill.style.width = `${(this._shown * 100).toFixed(1)}%`
+    this.pct.textContent = `${Math.round(this._shown * 100)}%`
+    if (label) this.status.textContent = label
   }
 
   ready(onStart) {
-    this.status.textContent = 'ready'
-    this.fill.style.width = '100%'
-    this.startBtn.classList.add('on')
+    this.setProgress(1, 'ready')
+    // Hold the finished bar on screen for a beat. Snapping from 40% straight to
+    // a start button is why the loader never registered as a loader.
+    setTimeout(() => {
+      this.node.classList.remove('loading')
+      this.node.classList.add('ready')
+    }, 420)
+
     const go = () => {
       this.startBtn.removeEventListener('click', go)
       window.removeEventListener('keydown', keyGo)

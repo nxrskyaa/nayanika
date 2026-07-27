@@ -103,8 +103,10 @@ export class FollowCamera {
     this.distance = THREE.MathUtils.damp(this.distance, this.targetDistance * this.zoom, 3.5, dt)
     this.height = THREE.MathUtils.damp(this.height, this.targetHeight, 3.5, dt)
 
-    // Where the camera is pointing, in the tangent plane.
-    _horiz.copy(_north).multiplyScalar(Math.cos(this.yaw)).addScaledVector(_east, Math.sin(this.yaw)).normalize()
+    // Where the camera is pointing, in the tangent plane. Yaw turns north -> west
+    // as it grows, which is the sign convention signedTangentAngle() reports in
+    // _alignTo() and the one that makes a rightward drag look right.
+    _horiz.copy(_north).multiplyScalar(Math.cos(this.yaw)).addScaledVector(_east, -Math.sin(this.yaw)).normalize()
     this.forward.copy(_horiz)
 
     _target.copy(player.worldPos).addScaledVector(_up, player.rig.height * 0.56)
@@ -191,7 +193,7 @@ export class FollowCamera {
 export function orbitPoint(dir, radius, angle, pitch, out = new THREE.Vector3()) {
   const up = _up.copy(dir).normalize()
   tangentBasis(up, _east, _north)
-  const horiz = _horiz.copy(_north).multiplyScalar(Math.cos(angle)).addScaledVector(_east, Math.sin(angle))
+  const horiz = _horiz.copy(_north).multiplyScalar(Math.cos(angle)).addScaledVector(_east, -Math.sin(angle))
   const p = moveAlongSphere(up, horiz, pitch, _tmp)
   return out.copy(p).multiplyScalar(radius)
 }

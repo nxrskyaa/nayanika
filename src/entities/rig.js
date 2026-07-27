@@ -278,6 +278,25 @@ const HAIR_BUILDERS = {
     g.add(hairBack)
     return g
   },
+  /** Udeng — the folded headcloth. Knot at the front, tail at the back. */
+  udeng(color, R) {
+    const g = new THREE.Group()
+    const hairCap = ellipsoid(R * 1.06, R * 0.98, R * 1.06, color, 12)
+    hairCap.position.y = R * 0.08
+    g.add(hairCap)
+    const band = boxMesh(R * 2.16, R * 0.68, R * 2.1, ACCENT.polengWhite, R * 0.2)
+    band.position.y = R * 0.5
+    g.add(band)
+    const knot = boxMesh(R * 0.34, R * 0.5, R * 0.34, ACCENT.polengWhite, R * 0.1)
+    knot.position.set(0, R * 0.92, R * 0.86)
+    knot.rotation.z = 0.3
+    g.add(knot)
+    const tail = boxMesh(R * 0.9, R * 0.5, R * 0.3, ACCENT.polengWhite, R * 0.1)
+    tail.position.set(0, R * 0.62, -R * 1.02)
+    tail.rotation.x = -0.35
+    g.add(tail)
+    return g
+  },
   strawHat(color, R) {
     const g = new THREE.Group()
     const dome = ellipsoid(R * 1.05, R * 0.6, R * 1.05, BUILD.tan, 12)
@@ -349,7 +368,7 @@ function backpack(color) {
 export const DEFAULT_LOOK = {
   skin: CHAR.skin,
   hair: CHAR.hair,
-  hairStyle: 'bob',
+  hairStyle: 'udeng',
   shirt: CHAR.shirt,
   shorts: CHAR.shorts,
   socks: CHAR.socks,
@@ -391,14 +410,27 @@ export function createCharacter(look = {}) {
   neck.add(head)
 
   // Torso + hips.
+  //
+  // The pelvis has to hang below the top of the thighs (hips - 0.02) and the
+  // yoke has to reach above the shoulder joints (chest + 0.22). Leave either
+  // short and the character reads as a stack of loose parts rather than a body.
   const torsoW = 0.38 * L.build
   const torso = boxMesh(torsoW, 0.36, 0.22 * L.build, L.shirt, 0.07)
   torso.position.y = 0.02
   chest.add(torso)
 
-  const pelvis = boxMesh(torsoW * 0.95, 0.2, 0.21 * L.build, L.shorts, 0.05)
-  pelvis.position.y = -0.16
+  const pelvis = boxMesh(torsoW * 0.96, 0.23, 0.215 * L.build, L.shorts, 0.05)
+  pelvis.position.y = -0.215
   chest.add(pelvis)
+
+  const yoke = boxMesh(torsoW * 0.92, 0.1, 0.2 * L.build, L.longSleeves ? L.shirt : L.skin, 0.045)
+  yoke.position.y = 0.2
+  chest.add(yoke)
+
+  // Neck. Bridges the top of the torso to the underside of the skull.
+  const neckMesh = mesh(new THREE.CylinderGeometry(0.072, 0.088, 0.19, 10), L.skin)
+  neckMesh.position.y = -0.055
+  neck.add(neckMesh)
 
   // Head.
   const skull = ellipsoid(R, R * 1.08, R * 0.98, L.skin, 16)
@@ -407,16 +439,21 @@ export function createCharacter(look = {}) {
   jaw.position.y = -R * 0.38
   head.add(jaw)
 
-  // Face. Only really visible when an NPC turns to talk, so keep it simple.
+  // Face. Sits proud of the skull surface — at the old inset the eyes were
+  // buried inside the head and nobody had a face at all.
   const face = new THREE.Group()
-  face.position.z = R * 0.9
+  face.position.z = R * 0.94
   head.add(face)
   for (const s of [-1, 1]) {
-    const eye = ellipsoid(R * 0.11, R * 0.15, R * 0.06, CHAR.eye, 8)
+    const eye = ellipsoid(R * 0.12, R * 0.16, R * 0.085, CHAR.eye, 8)
     eye.position.set(s * R * 0.38, -R * 0.05, 0)
     eye.castShadow = false
     face.add(eye)
   }
+  const mouth = boxMesh(R * 0.26, R * 0.05, R * 0.06, CHAR.eye)
+  mouth.position.set(0, -R * 0.44, -R * 0.06)
+  mouth.castShadow = false
+  face.add(mouth)
   const brow = new THREE.Group()
   face.add(brow)
 
@@ -433,6 +470,10 @@ export function createCharacter(look = {}) {
 
     const upper = bone(new THREE.Group())
     shoulder.add(upper)
+    // Rounded cap on the joint so the arm reads as attached rather than butted
+    // against the side of the torso.
+    const capMesh = ellipsoid(0.075, 0.072, 0.075, L.longSleeves ? L.shirt : L.skin, 8)
+    upper.add(capMesh)
     const upperMesh = boxMesh(0.105, DIM.upperArm, 0.105, L.longSleeves ? L.shirt : L.skin, 0.03)
     upperMesh.position.y = -DIM.upperArm / 2
     upper.add(upperMesh)
@@ -473,18 +514,21 @@ export function createCharacter(look = {}) {
     shin.add(shinMesh)
 
     const sock = boxMesh(0.11, 0.11, 0.12, L.socks, 0.03)
-    sock.position.y = -DIM.shin + 0.06
+    sock.position.y = -DIM.shin + 0.155
     shin.add(sock)
 
+    // The foot bone is the ankle, 0.02 above the ground. Build the shoe upward
+    // from there: previously the sole was authored downward and ended up 7cm
+    // below the character's own feet, so everyone waded through the terrain.
     const foot = bone(new THREE.Group())
     foot.position.y = -DIM.shin
     shin.add(foot)
-    const shoe = boxMesh(0.115, 0.075, 0.24, L.shoes, 0.035)
-    shoe.position.set(0, -0.038, 0.045)
-    foot.add(shoe)
-    const sole = boxMesh(0.12, 0.03, 0.245, ACCENT.white)
-    sole.position.set(0, -0.072, 0.045)
+    const sole = boxMesh(0.125, 0.035, 0.25, ACCENT.white)
+    sole.position.set(0, -0.0025, 0.045)
     foot.add(sole)
+    const shoe = boxMesh(0.12, 0.09, 0.24, L.shoes, 0.035)
+    shoe.position.set(0, 0.06, 0.045)
+    foot.add(shoe)
 
     legs[side] = { thigh, shin, foot }
   }
@@ -533,7 +577,8 @@ export function createCharacter(look = {}) {
     bones: { hips, chest, neck, head, arms, legs },
     carry,
     look: L,
-    height: 1.72 * L.scale,
+    // Sole (y=0) to crown: head bone 1.62 plus the skull's 0.20 upper radius.
+    height: 1.8 * L.scale,
   }
 }
 
