@@ -146,7 +146,13 @@ export class Terrain {
 
     _p1.sub(_p0)
     _p2.sub(_p0)
-    return out.crossVectors(_p1, _p2).normalize().multiplyScalar(-1)
+    // east x north points away from the core, so this is already the outward
+    // normal. Negating it — as this did — pointed every normal on the planet
+    // into the ground: the terrain was permanently lit from underneath and so
+    // never showed a light/shade terminator, and slopeAt() came back at ~2.8
+    // radians everywhere, which told the scatter pass the whole world was a
+    // cliff and left the wilderness completely bare.
+    return out.crossVectors(_p1, _p2).normalize()
   }
 
   /** Steepness in radians, 0 = flat ground. */

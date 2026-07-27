@@ -806,6 +806,48 @@ body.touch #touch-jump {
 /* byline                                                              */
 /* ------------------------------------------------------------------ */
 
+#clock {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 12px 6px;
+  border: 2.5px solid var(--ink);
+  border-radius: 9px;
+  background: rgba(250, 248, 240, 0.82);
+  box-shadow: 3px 3px 0 rgba(26, 23, 20, 0.28);
+  pointer-events: none;
+  user-select: none;
+  transition: background 900ms ease, color 900ms ease;
+}
+
+#clock .t {
+  font-family: 'Nayanika Display', sans-serif;
+  font-size: 17px;
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+#clock .p {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.66;
+  color: var(--ink);
+}
+
+#clock.night {
+  background: rgba(30, 40, 66, 0.86);
+}
+
+#clock.night .t,
+#clock.night .p {
+  color: #eef2fb;
+}
+
 #credit {
   position: absolute;
   left: 14px;

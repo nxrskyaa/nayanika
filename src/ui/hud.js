@@ -17,6 +17,14 @@ import {
 
 const hex = (c) => '#' + c.toString(16).padStart(6, '0')
 
+const PHASE_LABEL = {
+  night: 'malam',
+  twilight: 'senja',
+  goldenhour: 'sore',
+  morning: 'pagi',
+  day: 'siang',
+}
+
 function el(tag, cls, html) {
   const n = document.createElement(tag)
   if (cls) n.className = cls
@@ -44,6 +52,7 @@ export class Hud {
     this._buildEmotes()
     this._buildTouch()
     this._buildEnding()
+    this._buildClock()
     this._buildCredit()
 
     this._zoneTimer = 0
@@ -207,6 +216,23 @@ export class Hud {
       </div>`
     this.ending.querySelector('button').addEventListener('click', () => this.hideEnding())
     this.layer.appendChild(this.ending)
+  }
+
+  /** Clock + phase, top left. The only readout of the day/night cycle. */
+  _buildClock() {
+    this.clock = el('div')
+    this.clock.id = 'clock'
+    this.clock.innerHTML = '<span class="t">--:--</span><span class="p"></span>'
+    this.clockTime = this.clock.querySelector('.t')
+    this.clockPhase = this.clock.querySelector('.p')
+    this.layer.appendChild(this.clock)
+  }
+
+  setClock(label, phase) {
+    if (this.clockTime.textContent !== label) this.clockTime.textContent = label
+    const nice = PHASE_LABEL[phase] || phase
+    if (this.clockPhase.textContent !== nice) this.clockPhase.textContent = nice
+    this.clock.classList.toggle('night', phase === 'night' || phase === 'twilight')
   }
 
   /** Quiet corner byline. Sits under everything and never takes a click. */

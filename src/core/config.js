@@ -4,12 +4,19 @@
  */
 
 export const PLANET = {
-  /** Radius of the sea-level sphere, in world units. */
-  radius: 92,
+  /**
+   * Radius of the sea-level sphere, in world units.
+   *
+   * At 92 a district worked out to about 10 metres of usable ground, which is
+   * smaller than the gap between two streets — the grid landed on the rim and
+   * got shredded into stubs, and there was no room left to put buildings. The
+   * horizon still curves plainly at 150.
+   */
+  radius: 150,
   /** Terrain displacement range above sea level. */
   reliefMax: 22,
   /** Quad-sphere subdivisions per cube face. Higher = smoother silhouette. */
-  faceSegments: 96,
+  faceSegments: 112,
 }
 
 export const PLAYER = {
@@ -63,6 +70,16 @@ export const SUN = {
   color: 0xfff2d8,
   shadowRadius: 34,
   shadowMapSize: 2048,
+}
+
+export const DAY = {
+  /** Seconds of real time for one full rotation. */
+  length: 420,
+  /**
+   * How far the sun's track is tilted off the equator. Keeps it from passing
+   * exactly overhead at noon, which flattens every shadow on the planet.
+   */
+  tilt: 0.34,
 }
 
 export const INTERACT = {

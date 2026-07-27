@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { toon } from '../render/materials.js'
+import { groundDecal, toon } from '../render/materials.js'
 import { moveAlongSphere } from '../core/sphere.js'
 
 /**
@@ -86,7 +86,7 @@ export function stripBetween(left, right, ups, color, opts = {}) {
   geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
   geo.setIndex(indices)
   geo.computeBoundingSphere()
-  const mesh = new THREE.Mesh(geo, toon(color, opts.material))
+  const mesh = new THREE.Mesh(geo, groundDecal(color, opts.material))
   mesh.receiveShadow = true
   return mesh
 }
@@ -269,7 +269,7 @@ export function buildPlaza(centerDir, radiusMetres, terrain, color, segments = 4
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
   geo.setIndex(idx)
   geo.computeBoundingSphere()
-  const mesh = new THREE.Mesh(geo, toon(color))
+  const mesh = new THREE.Mesh(geo, groundDecal(color))
   mesh.receiveShadow = true
   return { mesh, rim }
 }

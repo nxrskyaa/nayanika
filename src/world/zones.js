@@ -7,7 +7,9 @@ import { dirFromDeg } from '../core/sphere.js'
  * zone you happen to be standing in.
  *
  * `radius` / `falloff` are angular, in radians. At the default planet radius
- * of 92 units, 0.10 rad ≈ 9 units of ground.
+ * of 150 units, 0.10 rad ≈ 15 units of ground. Neighbouring districts must
+ * keep `radius + falloff` below half the angle between their centres — the
+ * closest pair (Pasar Ubud and Banjar Tengah) are 0.458 rad apart.
  */
 
 export const ZONES = [
@@ -16,8 +18,8 @@ export const ZONES = [
     name: 'PASAR\nUBUD',
     label: 'Pasar Ubud',
     center: [6, 0],
-    radius: 0.115,
-    falloff: 0.085,
+    radius: 0.14,
+    falloff: 0.08,
     height: 7.0,
     flatness: 0.96,
     biome: 'town',
@@ -29,7 +31,7 @@ export const ZONES = [
     name: 'BANJAR\nTENGAH',
     label: 'Banjar Tengah',
     center: [-2, 25],
-    radius: 0.1,
+    radius: 0.125,
     falloff: 0.075,
     height: 6.2,
     flatness: 0.92,
@@ -42,8 +44,8 @@ export const ZONES = [
     name: 'PANTAI\nSANUR',
     label: 'Pantai Sanur',
     center: [-19, 52],
-    radius: 0.115,
-    falloff: 0.095,
+    radius: 0.14,
+    falloff: 0.085,
     height: 1.1,
     flatness: 0.9,
     biome: 'beach',
@@ -55,7 +57,7 @@ export const ZONES = [
     name: 'AIR TERJUN\nTEGENUNGAN',
     label: 'Air Terjun Tegenungan',
     center: [22, 92],
-    radius: 0.105,
+    radius: 0.125,
     falloff: 0.085,
     height: 13.5,
     flatness: 0.72,
@@ -68,7 +70,7 @@ export const ZONES = [
     name: 'MONKEY\nFOREST',
     label: 'Monkey Forest',
     center: [4, 132],
-    radius: 0.125,
+    radius: 0.15,
     falloff: 0.1,
     height: 9.0,
     flatness: 0.6,
@@ -81,7 +83,7 @@ export const ZONES = [
     name: 'SAWAH\nJATILUWIH',
     label: 'Sawah Jatiluwih',
     center: [23, 158],
-    radius: 0.115,
+    radius: 0.14,
     falloff: 0.1,
     height: 12.0,
     flatness: 0.66,
@@ -94,8 +96,8 @@ export const ZONES = [
     name: 'PURA\nBESAKIH',
     label: 'Pura Besakih',
     center: [44, 186],
-    radius: 0.115,
-    falloff: 0.12,
+    radius: 0.135,
+    falloff: 0.115,
     height: 21.5,
     flatness: 0.55,
     biome: 'temple',
@@ -107,7 +109,7 @@ export const ZONES = [
     name: 'KOTA\nDENPASAR',
     label: 'Kota Denpasar',
     center: [-24, 236],
-    radius: 0.11,
+    radius: 0.14,
     falloff: 0.08,
     height: 8.4,
     flatness: 0.95,
@@ -120,7 +122,7 @@ export const ZONES = [
     name: 'TEBING\nULUWATU',
     label: 'Tebing Uluwatu',
     center: [-10, 296],
-    radius: 0.075,
+    radius: 0.1,
     falloff: 0.075,
     height: 16.5,
     flatness: 0.68,
@@ -133,7 +135,7 @@ export const ZONES = [
     name: 'SETRA\nDALEM',
     label: 'Setra Dalem',
     center: [26, 322],
-    radius: 0.08,
+    radius: 0.105,
     falloff: 0.075,
     height: 11.0,
     flatness: 0.85,

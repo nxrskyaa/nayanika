@@ -9,6 +9,7 @@ import { headingTowards, moveAlongSphere, tangentBasis } from './core/sphere.js'
 
 import { Stage } from './render/stage.js'
 import { Sky } from './render/sky.js'
+import { DayNight } from './render/daynight.js'
 import { toon } from './render/materials.js'
 
 import { Terrain } from './world/terrain.js'
@@ -42,6 +43,7 @@ const intro = new IntroScreen(app)
 
 const stage = new Stage(sceneEl)
 const sky = new Sky(stage.scene)
+const dayNight = new DayNight(stage, sky)
 const terrain = new Terrain()
 const world = new World(stage.scene, terrain)
 
@@ -104,8 +106,12 @@ let started = false
 let introTimer = 0
 let parcelMesh = null
 const raycaster = new THREE.Raycaster()
-/** Characters further than this stop updating and stop drawing. */
-const CULL_DISTANCE = 78
+/**
+ * Characters further than this stop updating and stop drawing. A district is
+ * about forty metres across, so this still covers the one you are in and the
+ * approach to the next, and each character costs fifteen draw calls per pass.
+ */
+const CULL_DISTANCE = 56
 const pointer = new THREE.Vector2()
 
 const saved = readSave()
@@ -167,6 +173,10 @@ async function boot() {
   followCam.snapBehind(player)
   followCam.setZoneFraming(zoneById('main-square'))
   updateZone(true)
+
+  // Start the round mid-morning wherever the player happens to be standing.
+  dayNight.alignMorning(player.up)
+  dayNight.update(0, player.up, stage.camera)
 
   // One warm-up frame so the first visible frame is not a blank teal screen.
   stage.updateSunTarget(player.worldPos)
@@ -445,7 +455,11 @@ function frame() {
     followCam.yaw += dt * 0.06
   }
   followCam.update(dt, player)
+  // Time of day is graded from the sun's height above *this* spot, so walking
+  // far enough around the planet moves you through the hours as well.
+  dayNight.update(started ? dt : 0, player.up, stage.camera)
   stage.updateSunTarget(player.worldPos)
+  hud.setClock(dayNight.clockLabel(player.up), dayNight.grade.name)
 
   // --- townsfolk -----------------------------------------------------
   // Far-off characters are dropped entirely; on a planet this size most of
@@ -494,5 +508,5 @@ frame()
 
 // A tiny console handle for poking at the world during development.
 if (import.meta.env?.DEV) {
-  window.NAYANIKA = { stage, terrain, world, quests, get player() { return player }, followCam, audio }
+  window.NAYANIKA = { stage, sky, dayNight, terrain, world, quests, get player() { return player }, followCam, audio }
 }

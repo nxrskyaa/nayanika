@@ -186,12 +186,18 @@ export class World {
     const urban = zone.biome === 'town' || zone.biome === 'industry'
     const plan = planStreets(seed, {
       extent,
-      minGap: urban ? 10 : 14,
-      maxGap: urban ? 17 : 24,
-      wobble: urban ? 1.2 : 2.4,
+      minBlock: urban ? 21 : 26,
+      branches: urban ? 2 : 1,
+      // Low wobble on purpose. The streets are meant to look laid out, not
+      // sketched; the curvature of the planet supplies plenty of irregularity.
+      wobble: urban ? 0.8 : 1.7,
       mainWidth: urban ? 6.6 : 5.4,
       sideWidth: urban ? 4.4 : 3.8,
-      ring: urban,
+      // No ring road. At this district size a ring sits barely a building's
+      // width outside the crossroads, and every lot between the two gets
+      // squeezed out — you end up with a district of roads and no houses. The
+      // loop highway already carries traffic through each district anyway.
+      ring: false,
     })
 
     // Streets.
@@ -235,10 +241,21 @@ export class World {
       }
     }
 
-    // Buildings.
-    const lots = planLots(plan, { seed: seed + 17, inset: urban ? 3.2 : 5 })
+    // Buildings, lined up along the street frontages.
+    // Town plots are deliberately small. Two 6.6m streets crossing already eat
+    // ten metres out of the middle of a forty-metre district; at nine-metre
+    // plots only the four corners survive the clearance checks and the village
+    // comes out nearly empty. Narrow frontages packed close is also just what a
+    // market street looks like.
+    const lots = planLots(plan, {
+      seed: seed + 17,
+      pavement: urban ? 1.4 : 1.0,
+      setback: urban ? 0.6 : 2.0,
+      spacing: urban ? 6.5 : 10,
+      size: urban ? 5.6 : 6.0,
+      fill: urban ? 0.92 : 0.55,
+    })
     for (const lot of lots) {
-      if (!rngChance(rng, urban ? 0.88 : 0.5)) continue
       const d = toDir(lot.x, lot.z, new THREE.Vector3())
       const building = this.makeBuilding(zone, rng, lot)
       if (!building) continue
@@ -259,8 +276,8 @@ export class World {
     }
 
     // Nature and clutter away from the streets.
-    const scatterCount = zone.biome === 'forest' ? 150 : zone.biome === 'town' ? 34 : 70
-    for (const s of scatterOffStreet(plan, scatterCount, seed + 77, urban ? 3.5 : 2.5)) {
+    const scatterCount = zone.biome === 'forest' ? 130 : zone.biome === 'town' ? 44 : 78
+    for (const s of scatterOffStreet(plan, scatterCount, seed + 77, urban ? 3.5 : 2.5, lots)) {
       const d = toDir(s.x, s.z, new THREE.Vector3())
       const prop = this.makeNatureProp(zone, rng, s.scale)
       if (!prop) continue
@@ -280,11 +297,14 @@ export class World {
     const opts = { width: Math.min(lot.width, 10), depth: Math.min(lot.depth, 10) }
     switch (zone.biome) {
       case 'town': {
-        // What you see from an Ubud street is mostly wall and gate, with the
-        // odd two-storey shophouse and a warung wedged into the gaps.
+        // A walled compound needs room for a gate, a bale and a shrine; below
+        // about six metres it reads as a shed with a fence. Narrow frontages
+        // get shophouses and warungs instead, which is what lines a market
+        // street anyway.
+        const roomy = Math.min(lot.width, lot.depth) >= 6.2
         const r = rng()
-        if (r < 0.56) return P.balineseCompound(rng, opts)
-        if (r < 0.82) return P.townBuilding(rng, { ...opts, floors: rngInt(rng, 2, 3), color: BUILD.cream })
+        if (roomy && r < 0.55) return P.balineseCompound(rng, opts)
+        if (r < 0.74) return P.townBuilding(rng, { ...opts, floors: rngInt(rng, 2, 3), color: BUILD.cream })
         return P.warung(rng)
       }
       case 'industry': {
@@ -662,16 +682,42 @@ export class World {
     return g
   }
 
-  /** Trees and rocks outside the districts so the planet is never empty. */
+  /**
+   * Trees and rocks outside the districts so the planet is never empty.
+   *
+   * Merged per patch of sky rather than all at once: one planet-spanning mesh
+   * has a bounding sphere the size of the world, so the frustum can never cull
+   * it and every frame pays for the vegetation on the far side of the planet.
+   */
   buildWilderness() {
     const t = this.terrain
     const rng = makeRng(555)
-    const g = new THREE.Group()
+    /** Coarse lat/lon buckets, each merged separately so culling can work. */
+    const cells = new Map()
+    const cellFor = (d) => {
+      const lat = Math.asin(THREE.MathUtils.clamp(d.y, -1, 1))
+      const lon = Math.atan2(d.x, d.z)
+      // Eight cells, not more. Each cell costs one draw call per material it
+      // contains, so a fine grid buys culling and immediately hands the saving
+      // back at the command buffer.
+      const i = Math.min(1, Math.floor(((lat + Math.PI / 2) / Math.PI) * 2))
+      const j = Math.floor(((lon + Math.PI) / (Math.PI * 2)) * 4) % 4
+      const key = `${i}:${j}`
+      let cell = cells.get(key)
+      if (!cell) {
+        cell = new THREE.Group()
+        cells.set(key, cell)
+      }
+      return cell
+    }
     const dir = new THREE.Vector3()
     let placed = 0
-    let guard = 9000
+    let guard = 22000
 
-    while (placed < 620 && guard-- > 0) {
+    // Budgeted against the frame, not the map: the camera on a planet this
+    // small sees a long way, so this is roughly as much greenery as can be
+    // drawn twice (colour pass + normal pass) and still hold 60fps.
+    while (placed < 900 && guard-- > 0) {
       const z = rng() * 2 - 1
       const a = rng() * Math.PI * 2
       const r = Math.sqrt(Math.max(0, 1 - z * z))
@@ -704,11 +750,14 @@ export class World {
       else prop = rngChance(rng, 0.5) ? P.bush(rng) : P.grassTuft(rng)
 
       this.placeLocalYaw(prop, dir.clone(), rng() * Math.PI * 2)
-      g.add(prop)
+      cellFor(dir).add(prop)
       placed++
     }
 
-    return mergeByMaterial(g)
+    const out = new THREE.Group()
+    out.name = 'wilderness'
+    for (const cell of cells.values()) out.add(mergeByMaterial(cell))
+    return out
   }
 
   update(dt, time) {

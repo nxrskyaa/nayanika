@@ -156,13 +156,20 @@ export class Player {
         this.verticalVel = 0
         this.grounded = true
       }
+    } else if (this.elevation < groundEl) {
+      // Ground rose under us. Snap up on the same frame — damping this
+      // direction lets the ground outrun the character on any climb, and you
+      // walk the next few metres buried up to the knees.
+      this.elevation = groundEl
+      this.verticalVel = 0
     } else {
-      // Stick to the ground, but ease over bumps so the camera does not jolt.
-      this.elevation = THREE.MathUtils.damp(this.elevation, groundEl, 22, dt)
-      if (this.elevation < groundEl - 0.6) this.elevation = groundEl
-      if (groundEl - this.elevation > 0.35) {
+      // Ground fell away. Easing down is safe and keeps the camera from
+      // jolting over kerbs; past a real step, drop properly instead.
+      if (this.elevation - groundEl > 0.4) {
         this.grounded = false
         this.verticalVel = 0
+      } else {
+        this.elevation = THREE.MathUtils.damp(this.elevation, groundEl, 26, dt)
       }
     }
 

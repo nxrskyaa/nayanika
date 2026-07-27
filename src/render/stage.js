@@ -116,6 +116,9 @@ export class Stage {
 
     this.scene = new THREE.Scene()
     this.scene.background = new THREE.Color(SKY.horizon)
+    this.horizon = new THREE.Color(SKY.horizon)
+    /** Objects hidden during the normal pass so the edge filter ignores them. */
+    this._inkExcluded = []
 
     this.camera = new THREE.PerspectiveCamera(CAMERA.fov, 1, CAMERA.near, CAMERA.far)
     this.camera.position.set(0, 0, 140)
@@ -257,6 +260,20 @@ export class Stage {
     this.height = h
   }
 
+  /**
+   * Skip an object in the normal pass. Billboards and point sprites have no
+   * meaningful normals, and the edge filter turns them into stippled noise.
+   */
+  excludeFromInk(obj) {
+    if (obj && !this._inkExcluded.includes(obj)) this._inkExcluded.push(obj)
+  }
+
+  /** Sky colour behind everything — driven by the day/night grade. */
+  setHorizon(hex) {
+    this.horizon.setHex(hex)
+    this.scene.background.setHex(hex)
+  }
+
   /** Keep the shadow frustum tight around wherever the player is. */
   updateSunTarget(focus) {
     this.sun.target.position.copy(focus)
@@ -277,6 +294,13 @@ export class Stage {
     // View-space normals for the edge filter.
     const prevBg = this.scene.background
     const prevOverride = this.scene.overrideMaterial
+    const hidden = []
+    for (const o of this._inkExcluded) {
+      if (o.visible) {
+        o.visible = false
+        hidden.push(o)
+      }
+    }
     this.scene.background = null
     this.scene.overrideMaterial = this.normalMaterial
     r.setRenderTarget(this.rtNormal)
@@ -285,7 +309,8 @@ export class Stage {
     r.render(this.scene, this.camera)
     this.scene.overrideMaterial = prevOverride
     this.scene.background = prevBg
-    r.setClearColor(SKY.horizon, 1)
+    for (const o of hidden) o.visible = true
+    r.setClearColor(this.horizon, 1)
 
     // Ink.
     this.compositeMaterial.uniforms.uTime.value = this._time

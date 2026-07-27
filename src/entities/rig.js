@@ -12,18 +12,26 @@ import { toon } from '../render/materials.js'
  * Proportions are deliberately a little chibi: big head, short limbs.
  */
 
+/**
+ * Skeleton measurements, in metres from the soles.
+ *
+ * The head is deliberately large — a shade over a quarter of the total height,
+ * about 1:3.6. That is what makes a small figure legible at the distance this
+ * camera sits at: at realistic proportions the head is a few pixels across and
+ * the character reads as a walking stick.
+ */
 const DIM = {
-  hipY: 0.82,
-  chestY: 0.30, // relative to hips
-  neckY: 0.30, // relative to chest
-  headY: 0.20, // relative to neck
-  shoulderY: 0.22,
-  shoulderX: 0.20,
-  upperArm: 0.30,
-  foreArm: 0.27,
-  thigh: 0.40,
-  shin: 0.38,
-  headR: 0.185,
+  hipY: 0.68,
+  chestY: 0.3, // relative to hips
+  neckY: 0.3, // relative to chest
+  headY: 0.22, // relative to neck
+  shoulderY: 0.2,
+  shoulderX: 0.165,
+  upperArm: 0.26,
+  foreArm: 0.24,
+  thigh: 0.32,
+  shin: 0.3,
+  headR: 0.235,
 }
 
 function mesh(geo, color, opts) {
@@ -183,6 +191,18 @@ function ellipsoid(rx, ry, rz, color, seg = 12) {
   return mesh(geo, color)
 }
 
+/**
+ * A rounded limb hanging from the joint at the origin down to y = -length.
+ * Capsules rather than boxes: the silhouette is the whole character at this
+ * size, and a box arm reads as a plank however it is shaded.
+ */
+function limb(radius, length, color, seg = 10) {
+  const geo = new THREE.CapsuleGeometry(radius, Math.max(0.02, length - radius), 3, seg)
+  const m = mesh(geo, color)
+  m.position.y = -length / 2
+  return m
+}
+
 /* ------------------------------------------------------------------ */
 /* hair styles                                                          */
 /* ------------------------------------------------------------------ */
@@ -321,14 +341,13 @@ export const HAIR_STYLES = Object.keys(HAIR_BUILDERS)
 
 function messengerBag(color, strapColor) {
   const g = new THREE.Group()
-  const body = boxMesh(0.3, 0.26, 0.15, color, 0.05)
-  body.position.set(0, 0, 0)
+  const body = boxMesh(0.25, 0.22, 0.13, color, 0.05)
   g.add(body)
-  const flap = boxMesh(0.31, 0.14, 0.16, color, 0.04)
-  flap.position.set(0, 0.09, 0.005)
+  const flap = boxMesh(0.26, 0.12, 0.14, color, 0.04)
+  flap.position.set(0, 0.08, 0.005)
   g.add(flap)
-  const label = boxMesh(0.15, 0.11, 0.01, ACCENT.white)
-  label.position.set(0, 0.0, 0.082)
+  const label = boxMesh(0.12, 0.09, 0.01, ACCENT.white)
+  label.position.set(0, -0.01, 0.072)
   g.add(label)
   g.userData.strapColor = strapColor
   return g
@@ -409,49 +428,63 @@ export function createCharacter(look = {}) {
   head.position.y = DIM.headY
   neck.add(head)
 
-  // Torso + hips.
-  //
-  // The pelvis has to hang below the top of the thighs (hips - 0.02) and the
-  // yoke has to reach above the shoulder joints (chest + 0.22). Leave either
-  // short and the character reads as a stack of loose parts rather than a body.
-  const torsoW = 0.38 * L.build
-  const torso = boxMesh(torsoW, 0.36, 0.22 * L.build, L.shirt, 0.07)
-  torso.position.y = 0.02
+  // Torso + hips. The pelvis reaches below the top of the thighs and the yoke
+  // above the shoulder joints; leave either short and the figure comes apart.
+  const torsoW = 0.34 * L.build
+  const torso = boxMesh(torsoW, 0.4, 0.21 * L.build, L.shirt, 0.1)
+  torso.position.y = 0.06
   chest.add(torso)
 
-  const pelvis = boxMesh(torsoW * 0.96, 0.23, 0.215 * L.build, L.shorts, 0.05)
-  pelvis.position.y = -0.215
+  const pelvis = boxMesh(torsoW * 1.02, 0.24, 0.215 * L.build, L.shorts, 0.075)
+  pelvis.position.y = -0.2
   chest.add(pelvis)
 
-  const yoke = boxMesh(torsoW * 0.92, 0.1, 0.2 * L.build, L.longSleeves ? L.shirt : L.skin, 0.045)
-  yoke.position.y = 0.2
+  const yoke = boxMesh(torsoW * 0.94, 0.13, 0.2 * L.build, L.longSleeves ? L.shirt : L.skin, 0.06)
+  yoke.position.y = 0.21
   chest.add(yoke)
 
-  // Neck. Bridges the top of the torso to the underside of the skull.
-  const neckMesh = mesh(new THREE.CylinderGeometry(0.072, 0.088, 0.19, 10), L.skin)
-  neckMesh.position.y = -0.055
+  // Neck. Short and thick — bridges the top of the torso to the jaw.
+  const neckMesh = mesh(new THREE.CylinderGeometry(0.078, 0.094, 0.16, 10), L.skin)
+  neckMesh.position.y = -0.045
   neck.add(neckMesh)
 
-  // Head.
-  const skull = ellipsoid(R, R * 1.08, R * 0.98, L.skin, 16)
+  // Head: one soft mass, slightly wider than deep, with the jaw tucked in
+  // rather than bolted on as a separate slab.
+  const skull = ellipsoid(R, R * 0.98, R * 0.94, L.skin, 18)
   head.add(skull)
-  const jaw = boxMesh(R * 1.2, R * 0.7, R * 1.35, L.skin, R * 0.3)
-  jaw.position.y = -R * 0.38
+  const jaw = ellipsoid(R * 0.82, R * 0.55, R * 0.8, L.skin, 14)
+  jaw.position.set(0, -R * 0.46, R * 0.06)
   head.add(jaw)
+  for (const s of [-1, 1]) {
+    const ear = ellipsoid(R * 0.1, R * 0.17, R * 0.13, L.skin, 8)
+    ear.position.set(s * R * 0.97, -R * 0.06, -R * 0.02)
+    head.add(ear)
+  }
 
-  // Face. Sits proud of the skull surface — at the old inset the eyes were
-  // buried inside the head and nobody had a face at all.
+  // Face. Big eyes with a catchlight — at this camera distance the eyes are
+  // most of what carries the character, so they get the detail budget.
   const face = new THREE.Group()
-  face.position.z = R * 0.94
+  face.position.z = R * 0.9
   head.add(face)
   for (const s of [-1, 1]) {
-    const eye = ellipsoid(R * 0.12, R * 0.16, R * 0.085, CHAR.eye, 8)
-    eye.position.set(s * R * 0.38, -R * 0.05, 0)
+    const eye = ellipsoid(R * 0.16, R * 0.21, R * 0.1, CHAR.eye, 10)
+    eye.position.set(s * R * 0.36, -R * 0.02, 0)
     eye.castShadow = false
     face.add(eye)
+
+    const spark = ellipsoid(R * 0.055, R * 0.065, R * 0.04, ACCENT.white, 6)
+    spark.position.set(s * R * 0.36 + R * 0.05, R * 0.06, R * 0.07)
+    spark.castShadow = false
+    face.add(spark)
+
+    const browBar = boxMesh(R * 0.26, R * 0.05, R * 0.06, L.hair, R * 0.02)
+    browBar.position.set(s * R * 0.37, R * 0.29, -R * 0.02)
+    browBar.rotation.z = s * -0.14
+    browBar.castShadow = false
+    face.add(browBar)
   }
-  const mouth = boxMesh(R * 0.26, R * 0.05, R * 0.06, CHAR.eye)
-  mouth.position.set(0, -R * 0.44, -R * 0.06)
+  const mouth = boxMesh(R * 0.2, R * 0.045, R * 0.05, CHAR.eye, R * 0.02)
+  mouth.position.set(0, -R * 0.42, -R * 0.1)
   mouth.castShadow = false
   face.add(mouth)
   const brow = new THREE.Group()
@@ -468,28 +501,26 @@ export function createCharacter(look = {}) {
     shoulder.position.set(s * DIM.shoulderX * L.build, DIM.shoulderY, 0)
     chest.add(shoulder)
 
+    const sleeve = L.longSleeves ? L.shirt : L.skin
     const upper = bone(new THREE.Group())
     shoulder.add(upper)
     // Rounded cap on the joint so the arm reads as attached rather than butted
     // against the side of the torso.
-    const capMesh = ellipsoid(0.075, 0.072, 0.075, L.longSleeves ? L.shirt : L.skin, 8)
-    upper.add(capMesh)
-    const upperMesh = boxMesh(0.105, DIM.upperArm, 0.105, L.longSleeves ? L.shirt : L.skin, 0.03)
-    upperMesh.position.y = -DIM.upperArm / 2
-    upper.add(upperMesh)
+    upper.add(ellipsoid(0.078, 0.075, 0.078, sleeve, 10))
+    upper.add(limb(0.066, DIM.upperArm, sleeve))
 
     const fore = bone(new THREE.Group())
     fore.position.y = -DIM.upperArm
     upper.add(fore)
-    const foreMesh = boxMesh(0.09, DIM.foreArm, 0.09, L.skin, 0.03)
-    foreMesh.position.y = -DIM.foreArm / 2
-    fore.add(foreMesh)
+    fore.add(limb(0.058, DIM.foreArm, L.skin))
 
     const hand = bone(new THREE.Group())
     hand.position.y = -DIM.foreArm
     fore.add(hand)
-    const handMesh = boxMesh(0.085, 0.1, 0.07, L.skin, 0.03)
-    handMesh.position.y = -0.04
+    // Chunky mitten hands. Fingers would be invisible at this size and only
+    // add silhouette noise.
+    const handMesh = ellipsoid(0.062, 0.072, 0.055, L.skin, 10)
+    handMesh.position.y = -0.05
     hand.add(handMesh)
 
     arms[side] = { shoulder, upper, fore, hand }
@@ -500,34 +531,30 @@ export function createCharacter(look = {}) {
   for (const side of ['L', 'R']) {
     const s = side === 'L' ? -1 : 1
     const thigh = bone(new THREE.Group())
-    thigh.position.set(s * 0.1 * L.build, -0.02, 0)
+    thigh.position.set(s * 0.088 * L.build, -0.02, 0)
     hips.add(thigh)
-    const thighMesh = boxMesh(0.135, DIM.thigh, 0.15, L.shorts, 0.04)
-    thighMesh.position.y = -DIM.thigh / 2
-    thigh.add(thighMesh)
+    thigh.add(ellipsoid(0.085, 0.08, 0.085, L.shorts, 10))
+    thigh.add(limb(0.078, DIM.thigh, L.shorts))
 
     const shin = bone(new THREE.Group())
     shin.position.y = -DIM.thigh
     thigh.add(shin)
-    const shinMesh = boxMesh(0.105, DIM.shin, 0.115, L.longPants ? L.shorts : L.skin, 0.035)
-    shinMesh.position.y = -DIM.shin / 2
-    shin.add(shinMesh)
+    shin.add(limb(0.062, DIM.shin, L.longPants ? L.shorts : L.skin))
 
-    const sock = boxMesh(0.11, 0.11, 0.12, L.socks, 0.03)
-    sock.position.y = -DIM.shin + 0.155
+    const sock = mesh(new THREE.CylinderGeometry(0.066, 0.07, 0.1, 10), L.socks)
+    sock.position.y = -DIM.shin + 0.11
     shin.add(sock)
 
-    // The foot bone is the ankle, 0.02 above the ground. Build the shoe upward
-    // from there: previously the sole was authored downward and ended up 7cm
-    // below the character's own feet, so everyone waded through the terrain.
+    // The foot bone is the ankle. Build the shoe upward from there so the sole
+    // lands on y = 0 rather than below the character's own feet.
     const foot = bone(new THREE.Group())
     foot.position.y = -DIM.shin
     shin.add(foot)
-    const sole = boxMesh(0.125, 0.035, 0.25, ACCENT.white)
-    sole.position.set(0, -0.0025, 0.045)
+    const sole = boxMesh(0.125, 0.035, 0.235, ACCENT.white, 0.016)
+    sole.position.set(0, -0.0225, 0.038)
     foot.add(sole)
-    const shoe = boxMesh(0.12, 0.09, 0.24, L.shoes, 0.035)
-    shoe.position.set(0, 0.06, 0.045)
+    const shoe = boxMesh(0.12, 0.085, 0.225, L.shoes, 0.045)
+    shoe.position.set(0, 0.038, 0.038)
     foot.add(shoe)
 
     legs[side] = { thigh, shin, foot }
@@ -537,16 +564,16 @@ export function createCharacter(look = {}) {
   let bag = null
   if (L.bag !== null && L.bag !== undefined) {
     bag = messengerBag(L.bag, L.strap)
-    bag.position.set(0.02, -0.06, 0.14)
+    bag.position.set(0.04, -0.09, 0.12)
     bag.rotation.y = -0.15
     chest.add(bag)
-    const strap = boxMesh(0.055, 0.5, 0.03, L.strap)
-    strap.position.set(-0.06, 0.1, 0.12)
-    strap.rotation.z = 0.42
+    const strap = boxMesh(0.05, 0.46, 0.028, L.strap)
+    strap.position.set(-0.05, 0.09, 0.11)
+    strap.rotation.z = 0.44
     chest.add(strap)
-    const strapBack = boxMesh(0.055, 0.48, 0.03, L.strap)
-    strapBack.position.set(-0.05, 0.1, -0.11)
-    strapBack.rotation.z = 0.42
+    const strapBack = boxMesh(0.05, 0.44, 0.028, L.strap)
+    strapBack.position.set(-0.04, 0.09, -0.1)
+    strapBack.rotation.z = 0.44
     chest.add(strapBack)
   }
 
@@ -577,8 +604,9 @@ export function createCharacter(look = {}) {
     bones: { hips, chest, neck, head, arms, legs },
     carry,
     look: L,
-    // Sole (y=0) to crown: head bone 1.62 plus the skull's 0.20 upper radius.
-    height: 1.8 * L.scale,
+    // Sole (y=0) to crown: head bone at 1.50 plus the skull and whatever the
+    // hairstyle stacks on top of it.
+    height: 1.78 * L.scale,
   }
 }
 

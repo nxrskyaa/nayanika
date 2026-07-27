@@ -40,10 +40,13 @@ export function toon(color, opts = {}) {
     depthWrite = true,
     fog = true,
     cache = true,
+    polygonOffset = false,
+    polygonOffsetFactor = 0,
+    polygonOffsetUnits = 0,
   } = opts
 
   const key = cache
-    ? `${color}|${vertexColors}|${transparent}|${opacity}|${side}|${emissive}|${emissiveIntensity}|${depthWrite}|${fog}`
+    ? `${color}|${vertexColors}|${transparent}|${opacity}|${side}|${emissive}|${emissiveIntensity}|${depthWrite}|${fog}|${polygonOffset}|${polygonOffsetFactor}|${polygonOffsetUnits}`
     : null
   if (key && _cache.has(key)) return _cache.get(key)
 
@@ -58,9 +61,21 @@ export function toon(color, opts = {}) {
     emissiveIntensity,
     depthWrite,
     fog,
+    polygonOffset,
+    polygonOffsetFactor,
+    polygonOffsetUnits,
   })
   if (key) _cache.set(key, mat)
   return mat
+}
+
+/**
+ * Material for anything painted onto the ground — tarmac, pavement, road
+ * markings, plaza paving. The polygon offset keeps it in front of the terrain
+ * without needing a lift big enough to see from the side.
+ */
+export function groundDecal(color, opts = {}) {
+  return toon(color, { ...opts, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })
 }
 
 /** Unlit flat colour — used for things that should not pick up the sun at all. */

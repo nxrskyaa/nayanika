@@ -999,18 +999,18 @@ export function banyan(rng, opts = {}) {
     g.add(at(cyl(0.6 * scale, 0.66 * scale, 0.6 * scale, 9, ACCENT.polengWhite), 0, 1.0 * scale, 0))
   }
 
-  const blobs = rngInt(rng, 6, 9)
+  const blobs = rngInt(rng, 5, 7)
   for (let i = 0; i < blobs; i++) {
     const a = (i / blobs) * Math.PI * 2 + rng() * 0.6
     const rad = i === 0 ? 0 : rngRange(rng, 0.7, 1.9) * scale
     const r = rngRange(rng, 1.0, 1.7) * scale
-    const s = sphere(r, rngPick(rng, [NATURE.leafDark, NATURE.leaf, NATURE.bush]), 9)
+    const s = sphere(r, rngPick(rng, [NATURE.leafDark, NATURE.leaf, NATURE.bush]), 8)
     s.scale.set(r * 1.2, r * 0.8, r * 1.15)
     g.add(at(s, Math.cos(a) * rad, trunkH + rngRange(rng, 0.3, 1.2) * scale, Math.sin(a) * rad))
   }
 
   // Aerial roots dropping straight out of the canopy.
-  for (let i = 0; i < rngInt(rng, 5, 10); i++) {
+  for (let i = 0; i < rngInt(rng, 3, 6); i++) {
     const a = rng() * Math.PI * 2
     const rad = rngRange(rng, 0.9, 2.0) * scale
     const top = trunkH + rngRange(rng, 0.2, 0.9) * scale
@@ -1091,13 +1091,13 @@ export function tree(rng, opts = {}) {
   const scale = opts.scale ?? rngRange(rng, 0.8, 1.5)
   const trunkH = rngRange(rng, 1.8, 3.2) * scale
   g.add(at(cyl(0.13 * scale, 0.24 * scale, trunkH, 7, rngPick(rng, [NATURE.trunk, NATURE.trunkDark])), 0, trunkH / 2, 0))
-  const blobs = rngInt(rng, 3, 6)
+  const blobs = rngInt(rng, 3, 5)
   const leafCol = opts.leaf ?? rngPick(rng, [NATURE.leaf, NATURE.leafDark, NATURE.leafLight, NATURE.bush])
   for (let i = 0; i < blobs; i++) {
     const r = rngRange(rng, 0.75, 1.35) * scale
     const a = (i / blobs) * Math.PI * 2 + rng() * 0.7
     const rad = i === 0 ? 0 : rngRange(rng, 0.25, 0.85) * scale
-    const s = sphere(r, leafCol, 9)
+    const s = sphere(r, leafCol, 7)
     s.scale.set(r * 1.15, r * 0.86, r * 1.1)
     g.add(at(s, Math.cos(a) * rad, trunkH + rngRange(rng, 0.2, 0.95) * scale, Math.sin(a) * rad))
   }
