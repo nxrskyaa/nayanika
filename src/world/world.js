@@ -56,6 +56,24 @@ export class World {
     this.obstacles.push({ dir: dir.clone().normalize(), radius })
   }
 
+  /**
+   * True if `dir` sits within `metres` of the loop highway's centreline.
+   *
+   * Every placement pass must ask this. The scatter passes all dodge the
+   * *district* streets they know about, but the highway is built before any of
+   * them and none of them knew it existed — which is how palms, boats and
+   * whole trees ended up standing in the middle of the road.
+   */
+  nearHighway(dir, metres = 7.5) {
+    const dirs = this.highwayDirs
+    if (!dirs || dirs.length === 0) return false
+    const cosLimit = Math.cos(metres / this.terrain.radius)
+    for (let i = 0; i < dirs.length; i++) {
+      if (dir.dot(dirs[i]) > cosLimit) return true
+    }
+    return false
+  }
+
   async build(onProgress = () => {}) {
     const t = this.terrain
     let step = 0
@@ -85,7 +103,38 @@ export class World {
     await tick('filling the sea')
 
     // --- the loop road ------------------------------------------------
+    //
+    // The highway stops at each district's edge instead of ploughing through
+    // it. Districts lay their own streets, and running the highway across them
+    // stacked two roads and two pavements on the same ground — the z-fighting
+    // shards and the "two roads merged into each other" glitch both came from
+    // that overlap.
     const highways = new THREE.Group()
+    /** Coarse samples of every highway centreline, for keep-clear checks. */
+    this.highwayDirs = []
+
+    /** Split a polyline into the parts that lie outside every district. */
+    const clipToOpenCountry = (dirs) => {
+      const runs = []
+      let run = []
+      for (const d of dirs) {
+        let inside = false
+        for (const z of ZONES) {
+          if (d.dot(z.dir) > Math.cos(z.radius * 0.9)) {
+            inside = true
+            break
+          }
+        }
+        if (!inside) run.push(d)
+        else {
+          if (run.length > 6) runs.push(run)
+          run = []
+        }
+      }
+      if (run.length > 6) runs.push(run)
+      return runs
+    }
+
     for (let i = 0; i < ROAD_LOOP.length - 1; i++) {
       const a = zoneById(ROAD_LOOP[i])
       const b = zoneById(ROAD_LOOP[i + 1])
@@ -100,40 +149,42 @@ export class World {
         const wobble = Math.sin((s / steps) * Math.PI) * Math.sin(i * 2.3) * 7
         dirs.push(moveAlongSphere(d, east, wobble / t.radius, new THREE.Vector3()))
       }
-      const road = buildRoad(dirs, t, {
-        width: 7,
-        pavement: 1.2,
-        roadColor: GROUND.road,
-        pavementColor: GROUND.pavement,
-        lineColor: GROUND.line,
-        dashed: true,
-        edgeLines: true,
-      })
-      highways.add(road)
 
-      // Poles at a steady spacing, with the cables actually strung between
-      // them. Skipping poles at random left ragged clumps and the wires were
-      // never drawn at all, so the roadside read as scattered posts.
       const rng = makeRng(3000 + i)
-      const side = offsetPath(dirs, 5.6, t.radius)
-      const height = rngRange(rng, 7.5, 9)
-      const attach = P.POLE_ATTACH(height)
-      let prevPoints = null
-      for (let s = 4; s < dirs.length - 4; s += 9) {
-        const d = side[s]
-        const pole = P.utilityPole(rng, height)
-        this.placeLocal(pole, d, dirs[Math.min(dirs.length - 1, s + 1)])
-        highways.add(pole)
+      for (const run of clipToOpenCountry(dirs)) {
+        for (let s = 0; s < run.length; s += 2) this.highwayDirs.push(run[s])
 
-        pole.updateMatrixWorld(true)
-        const points = attach.map(([x, y, z]) => pole.localToWorld(new THREE.Vector3(x, y, z)))
-        if (prevPoints) {
-          for (let k = 0; k < points.length; k++) {
-            const span = prevPoints[k].distanceTo(points[k])
-            highways.add(P.powerLine(prevPoints[k], points[k], span * 0.055))
+        const road = buildRoad(run, t, {
+          width: 7,
+          pavement: 1.2,
+          roadColor: GROUND.road,
+          pavementColor: GROUND.pavement,
+          lineColor: GROUND.line,
+          dashed: true,
+          edgeLines: true,
+        })
+        highways.add(road)
+
+        // Poles at a steady spacing, cables strung between consecutive ones.
+        const side = offsetPath(run, 5.6, t.radius)
+        const height = rngRange(rng, 7.5, 9)
+        const attach = P.POLE_ATTACH(height)
+        let prevPoints = null
+        for (let s = 4; s < run.length - 4; s += 9) {
+          const pole = P.utilityPole(rng, height)
+          this.placeLocal(pole, side[s], run[Math.min(run.length - 1, s + 1)])
+          highways.add(pole)
+
+          pole.updateMatrixWorld(true)
+          const points = attach.map(([x, y, z]) => pole.localToWorld(new THREE.Vector3(x, y, z)))
+          if (prevPoints && prevPoints[0].distanceTo(points[0]) < 26) {
+            for (let k = 0; k < points.length; k++) {
+              const span = prevPoints[k].distanceTo(points[k])
+              highways.add(P.powerLine(prevPoints[k], points[k], span * 0.055))
+            }
           }
+          prevPoints = points
         }
-        prevPoints = points
       }
     }
     this.root.add(mergeByMaterial(highways))
@@ -271,6 +322,10 @@ export class World {
     })
     for (const lot of lots) {
       const d = toDir(lot.x, lot.z, new THREE.Vector3())
+      // 13m: lot centre clearance must cover half a building (up to ~7.5m for
+      // the widest tower) plus the road's own 4.7m half-width, or a compound
+      // wall ends up standing in the carriageway.
+      if (this.nearHighway(d, 13)) continue
       const building = this.makeBuilding(zone, rng, lot)
       if (!building) continue
       this.placeLocalYaw(building, d, lot.facing)
@@ -287,6 +342,7 @@ export class World {
     })
     for (const s of spots) {
       const d = toDir(s.x, s.z, new THREE.Vector3())
+      if (this.nearHighway(d)) continue
       const prop = this.makeStreetProp(zone, rng)
       if (!prop) continue
       this.placeLocalYaw(prop, d, s.angle)
@@ -298,6 +354,7 @@ export class World {
     const scatterCount = zone.biome === 'forest' ? 130 : zone.biome === 'town' ? 44 : 78
     for (const s of scatterOffStreet(plan, scatterCount, seed + 77, urban ? 3.5 : 2.5, lots)) {
       const d = toDir(s.x, s.z, new THREE.Vector3())
+      if (this.nearHighway(d)) continue
       const prop = this.makeNatureProp(zone, rng, s.scale, t.slopeAt(d))
       if (!prop) continue
       this.placeLocalYaw(prop, d, s.angle)
@@ -520,11 +577,18 @@ export class World {
         const d = put(lh, extent * 0.55, extent * 0.35, 0, 'seaside:lighthouse')
         this.addObstacle(d, 2.4)
         for (let i = 0; i < 11; i++) {
-          put(P.palm(rng), rngRange(rng, -extent, extent), rngRange(rng, -extent, extent), rng() * 6.28)
+          const px = rngRange(rng, -extent, extent)
+          const pz = rngRange(rng, -extent, extent)
+          if (this.nearHighway(toDir(px, pz, new THREE.Vector3()))) continue
+          put(P.palm(rng), px, pz, rng() * 6.28)
         }
-        // Jukung hauled up the sand in a row, the way they are every morning.
+        // Jukung hauled up the sand in a row, the way they are every morning —
+        // and never across the road, which is where the old row could land.
         for (let i = 0; i < 5; i++) {
-          put(P.jukung(rng), -7 + i * 3.4 + rngRange(rng, -0.6, 0.6), extent * 0.62 + rngRange(rng, -1.2, 1.2), rngRange(rng, -0.25, 0.25))
+          const bx = -7 + i * 3.4 + rngRange(rng, -0.6, 0.6)
+          const bz = extent * 0.62 + rngRange(rng, -1.2, 1.2)
+          if (this.nearHighway(toDir(bx, bz, new THREE.Vector3()), 9)) continue
+          put(P.jukung(rng), bx, bz, rngRange(rng, -0.25, 0.25))
         }
         put(P.balineseShrine(rng, 1.0), -extent * 0.4, extent * 0.3, 0)
         this.anchor('seaside:pier', toDir(0, extent * 0.7, new THREE.Vector3()))
@@ -755,6 +819,7 @@ export class World {
       if (h < 1.4 || h > 27) continue
       const slope = t.slopeAt(dir)
       if (slope > 0.72) continue
+      if (this.nearHighway(dir)) continue
 
       // Skip anywhere a district already handles.
       let inZone = false

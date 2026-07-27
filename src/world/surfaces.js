@@ -268,7 +268,11 @@ export function buildPlaza(centerDir, radiusMetres, terrain, color, segments = 4
   const east = new THREE.Vector3().crossVectors(ref, up).normalize()
   const north = new THREE.Vector3().crossVectors(up, east).normalize()
 
-  const positions = [terrain.surfacePoint(up, 0.11, new THREE.Vector3())]
+  // Below the road surface (0.06) on purpose. The plaza used to sit at 0.11 —
+  // physically above every street crossing it — and its warm paving punched
+  // through the tarmac as ragged sand-coloured shards wherever the depth bias
+  // could not make up a five-centimetre real difference.
+  const positions = [terrain.surfacePoint(up, 0.04, new THREE.Vector3())]
   const normals = [up.clone()]
   const rim = []
   for (let i = 0; i <= segments; i++) {
@@ -276,7 +280,7 @@ export function buildPlaza(centerDir, radiusMetres, terrain, color, segments = 4
     _tmp.copy(east).multiplyScalar(Math.cos(a)).addScaledVector(north, Math.sin(a))
     const d = moveAlongSphere(up, _tmp, radiusMetres / R, new THREE.Vector3())
     rim.push(d)
-    positions.push(terrain.surfacePoint(d, 0.11, new THREE.Vector3()))
+    positions.push(terrain.surfacePoint(d, 0.04, new THREE.Vector3()))
     normals.push(d.clone().normalize())
   }
 
@@ -308,10 +312,34 @@ export function buildPlaza(centerDir, radiusMetres, terrain, color, segments = 4
   return { mesh, rim }
 }
 
-/** The ocean: a slightly translucent sphere at sea level. */
+/**
+ * The ocean: a translucent sphere at sea level, vertex-coloured by the depth
+ * of the seabed underneath. One flat teal from shore to horizon was most of
+ * why the coast read as a paint fill — a bright lagoon rim over the shallows,
+ * deepening offshore, is what makes it read as water.
+ */
 export function buildOcean(terrain, color, deepColor) {
-  const geo = new THREE.SphereGeometry(terrain.radius + 0.02, 96, 64)
-  const mat = toon(color, { transparent: true, opacity: 0.86, cache: false })
+  const geo = new THREE.SphereGeometry(terrain.radius + 0.02, 128, 88)
+  const pos = geo.attributes.position
+  const colors = new Float32Array(pos.count * 3)
+  const shallow = new THREE.Color(0x8ce8d8)
+  const mid = new THREE.Color(color)
+  const deep = new THREE.Color(deepColor)
+  const d = new THREE.Vector3()
+  const c = new THREE.Color()
+  for (let i = 0; i < pos.count; i++) {
+    d.fromBufferAttribute(pos, i).normalize()
+    const depth = -terrain.heightAt(d)
+    if (depth <= 0.7) c.copy(shallow)
+    else if (depth < 4.2) c.copy(shallow).lerp(mid, (depth - 0.7) / 3.5)
+    else c.copy(mid).lerp(deep, Math.min(1, (depth - 4.2) / 7))
+    colors[i * 3] = c.r
+    colors[i * 3 + 1] = c.g
+    colors[i * 3 + 2] = c.b
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+
+  const mat = toon(0xffffff, { vertexColors: true, transparent: true, opacity: 0.9, cache: false })
   mat.depthWrite = true
   const mesh = new THREE.Mesh(geo, mat)
   mesh.name = 'ocean'

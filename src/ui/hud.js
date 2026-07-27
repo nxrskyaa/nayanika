@@ -390,9 +390,35 @@ export class IntroScreen {
     this.node = el('div')
     this.node.id = 'intro'
     this.node.classList.add('loading')
+
+    // The title comes in one letter at a time; each span carries its own delay.
+    const letters = GAME_TITLE.split('')
+      .map((ch, i) => `<span class="ltr" style="animation-delay:${380 + i * 90}ms">${ch}</span>`)
+      .join('')
+
+    // The backdrop is a painted island dawn built from pure CSS layers: sun
+    // and halo, drifting clouds, a meru silhouette on its hill, palm heads,
+    // terraced ridges and a sea band — so the first thing the player sees is
+    // the island, not a form.
     this.node.innerHTML = `
+      <div class="scene">
+        <div class="halo"></div>
+        <div class="sun"></div>
+        <div class="cl c1"></div><div class="cl c2"></div><div class="cl c3"></div>
+        <div class="ridge r3"></div>
+        <div class="meru">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="ridge r2"></div>
+        <div class="palm pL"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="palm pR"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="ridge r1"></div>
+        <div class="sea"></div>
+        <div class="vig"></div>
+      </div>
       <div class="inner">
-        <h1>${GAME_TITLE}</h1>
+        <div class="pre">nxrskyaa presents</div>
+        <h1>${letters}</h1>
         <p class="tag">${GAME_TAGLINE}</p>
         <div class="swap">
           <div class="loader">

@@ -1215,23 +1215,52 @@ export function pine(rng, opts = {}) {
 
 export function palm(rng) {
   const g = group()
-  const h = rngRange(rng, 3.4, 5.6)
-  const lean = rngRange(rng, -0.2, 0.2)
-  const trunk = at(cyl(0.14, 0.24, h, 7, NATURE.trunk), 0, h / 2, 0)
+  const h = rngRange(rng, 3.4, 5.4)
+  const lean = rngRange(rng, -0.16, 0.16)
+  const trunk = at(cyl(0.13, 0.22, h, 7, NATURE.trunk), 0, h / 2, 0)
   trunk.rotation.z = lean
   g.add(trunk)
+
   const top = new THREE.Group()
-  top.position.set(-Math.sin(lean) * h, Math.cos(lean) * h, 0)
-  const fronds = rngInt(rng, 6, 9)
+  top.position.set(-Math.sin(lean) * h, Math.cos(lean) * h * 0.98, 0)
+  top.rotation.z = lean * 0.5
+  g.add(top)
+
+  /**
+   * Each frond is two blades: a short one rising off the crown and a longer
+   * one drooping from its tip. The old fronds were single rigid planks laid in
+   * a flat star, which from any distance read as green boards nailed to a post
+   * — the silhouette of a palm is entirely in the droop.
+   */
+  const fronds = rngInt(rng, 7, 9)
   for (let i = 0; i < fronds; i++) {
-    const a = (i / fronds) * Math.PI * 2
-    const f = at(box(0.24, 0.07, 2.1, NATURE.leaf), Math.cos(a) * 0.9, -0.18, Math.sin(a) * 0.9)
-    f.rotation.y = -a
-    f.rotation.x = 0.32
+    const f = new THREE.Group()
+    f.rotation.y = (i / fronds) * Math.PI * 2 + rng() * 0.25
+    f.rotation.z = rngRange(rng, -0.06, 0.06)
+    const c = i % 2 ? NATURE.palmFrond : NATURE.palmFrondDark
+
+    const inner = at(box(0.3, 0.05, 0.85, c), 0, 0.16, 0.4)
+    inner.rotation.x = -0.42
+    f.add(inner)
+
+    const outer = at(box(0.2, 0.04, 1.05, c), 0, 0.22, 1.08)
+    outer.rotation.x = 0.55
+    f.add(outer)
+
+    const tip = at(box(0.11, 0.035, 0.5, c), 0, -0.08, 1.62)
+    tip.rotation.x = 0.95
+    f.add(tip)
+
     top.add(f)
   }
-  top.add(at(sphere(0.28, NATURE.trunkDark, 7), 0, 0, 0))
-  g.add(top)
+
+  top.add(at(sphere(0.24, NATURE.trunkDark, 7), 0, 0.02, 0))
+  // Coconuts.
+  for (let i = 0; i < rngInt(rng, 2, 4); i++) {
+    const a = rng() * Math.PI * 2
+    top.add(at(sphere(0.11, BUILD.woodDark, 6), Math.cos(a) * 0.22, -0.12, Math.sin(a) * 0.22))
+  }
+
   g.userData.footprint = 1.1
   return g
 }

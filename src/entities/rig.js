@@ -317,6 +317,57 @@ const HAIR_BUILDERS = {
     g.add(tail)
     return g
   },
+  /**
+   * Barong mask headdress. Not the whole beast — one dancer's share of it:
+   * the gold crown fanning up and out, red mask plate over the brow, gilded
+   * ear wings and the white beard hanging under the jaw.
+   */
+  barong(color, R) {
+    const g = new THREE.Group()
+    const cap = ellipsoid(R * 1.08, R * 1.0, R * 1.08, ACCENT.deepRed, 12)
+    cap.position.y = R * 0.12
+    g.add(cap)
+
+    // Brow plate.
+    const plate = boxMesh(R * 1.7, R * 0.5, R * 0.34, ACCENT.deepRed, R * 0.1)
+    plate.position.set(0, R * 0.56, R * 0.62)
+    plate.rotation.x = -0.32
+    g.add(plate)
+    const plateTrim = boxMesh(R * 1.78, R * 0.14, R * 0.36, BUILD.gold, R * 0.05)
+    plateTrim.position.set(0, R * 0.82, R * 0.56)
+    plateTrim.rotation.x = -0.32
+    g.add(plateTrim)
+
+    // Crown: gold fans stepping up and back.
+    for (let i = 0; i < 4; i++) {
+      const w = R * (1.9 - i * 0.34)
+      const fan = boxMesh(w, R * 0.34, R * 0.14, i % 2 ? BUILD.gold : BUILD.goldDark, R * 0.05)
+      fan.position.set(0, R * (0.95 + i * 0.3), R * (0.28 - i * 0.2))
+      fan.rotation.x = -0.5 + i * 0.1
+      g.add(fan)
+    }
+    const crest = new THREE.Mesh(new THREE.ConeGeometry(R * 0.22, R * 0.62, 6), toon(BUILD.gold, { cache: false }))
+    crest.castShadow = true
+    crest.position.set(0, R * 2.05, -R * 0.32)
+    g.add(crest)
+
+    // Gilded ear wings.
+    for (const s of [-1, 1]) {
+      const wing = boxMesh(R * 0.24, R * 0.72, R * 0.5, BUILD.gold, R * 0.07)
+      wing.position.set(s * R * 1.12, R * 0.32, -R * 0.05)
+      wing.rotation.z = s * 0.4
+      g.add(wing)
+    }
+
+    // White beard fringe under the jaw.
+    for (let i = -2; i <= 2; i++) {
+      const tuft = boxMesh(R * 0.18, R * 0.44, R * 0.12, ACCENT.polengWhite, R * 0.05)
+      tuft.position.set(i * R * 0.2, -R * 0.78, R * 0.5)
+      tuft.rotation.x = 0.25
+      g.add(tuft)
+    }
+    return g
+  },
   strawHat(color, R) {
     const g = new THREE.Group()
     const dome = ellipsoid(R * 1.05, R * 0.6, R * 1.05, BUILD.tan, 12)
@@ -380,6 +431,64 @@ function backpack(color) {
   return g
 }
 
+/** Selendang — the kebaya sash: a wrap at the waist and a band across the chest. */
+function sash(color) {
+  const g = new THREE.Group()
+  const waist = boxMesh(0.4, 0.1, 0.25, color, 0.03)
+  waist.position.set(0, -0.12, 0)
+  g.add(waist)
+  const knot = boxMesh(0.09, 0.16, 0.05, color, 0.02)
+  knot.position.set(0.17, -0.15, 0.1)
+  knot.rotation.z = 0.3
+  g.add(knot)
+  const band = boxMesh(0.09, 0.5, 0.03, color)
+  band.position.set(-0.05, 0.08, 0.125)
+  band.rotation.z = 0.5
+  g.add(band)
+  return g
+}
+
+/** VR goggles, worn over the eyes with a strap round the back of the head. */
+function vrGoggles(R) {
+  const g = new THREE.Group()
+  const visor = boxMesh(R * 1.3, R * 0.52, R * 0.4, 0x24262b, R * 0.1)
+  visor.position.set(0, R * 0.02, R * 0.78)
+  g.add(visor)
+  const lens = boxMesh(R * 1.1, R * 0.34, R * 0.05, 0x3fa7c9, R * 0.05)
+  lens.position.set(0, R * 0.02, R * 0.99)
+  lens.castShadow = false
+  g.add(lens)
+  const pad = boxMesh(R * 1.34, R * 0.14, R * 0.36, 0x3a3d44, R * 0.04)
+  pad.position.set(0, R * 0.32, R * 0.72)
+  g.add(pad)
+  for (const s of [-1, 1]) {
+    const strap = boxMesh(R * 0.9, R * 0.16, R * 0.08, 0x24262b)
+    strap.position.set(s * R * 0.72, R * 0.05, R * 0.1)
+    strap.rotation.y = s * 0.9
+    g.add(strap)
+  }
+  return g
+}
+
+/** The barong's shaggy white collar, in layered rings around the shoulders. */
+function mane(color) {
+  const g = new THREE.Group()
+  for (let ring = 0; ring < 3; ring++) {
+    const y = 0.16 - ring * 0.13
+    const rad = 0.24 + ring * 0.05
+    const tufts = 9
+    for (let i = 0; i < tufts; i++) {
+      const a = (i / tufts) * Math.PI * 2 + ring * 0.35
+      const tuft = boxMesh(0.09, 0.3, 0.06, ring % 2 ? color : BUILD.gold, 0.02)
+      tuft.position.set(Math.cos(a) * rad, y, Math.sin(a) * rad)
+      tuft.rotation.z = -Math.cos(a) * 0.45
+      tuft.rotation.x = Math.sin(a) * 0.45
+      g.add(tuft)
+    }
+  }
+  return g
+}
+
 /* ------------------------------------------------------------------ */
 /* the rig                                                              */
 /* ------------------------------------------------------------------ */
@@ -396,8 +505,12 @@ export const DEFAULT_LOOK = {
   strap: CHAR.strap,
   scale: 1,
   build: 1,
-  accessory: null, // 'tie' | 'apron' | 'backpack' | null
+  accessory: null, // 'tie' | 'apron' | 'backpack' | 'sash' | 'vr' | 'mane' | null
   accessoryColor: ACCENT.red,
+  /** null for human; 'koala' swaps the ears and nose. */
+  species: null,
+  /** A colour to tuck a flower over the right ear, or null. */
+  hairFlower: null,
   longSleeves: true,
   longPants: false,
 }
@@ -455,10 +568,26 @@ export function createCharacter(look = {}) {
   const jaw = ellipsoid(R * 0.82, R * 0.55, R * 0.8, L.skin, 14)
   jaw.position.set(0, -R * 0.46, R * 0.06)
   head.add(jaw)
-  for (const s of [-1, 1]) {
-    const ear = ellipsoid(R * 0.1, R * 0.17, R * 0.13, L.skin, 8)
-    ear.position.set(s * R * 0.97, -R * 0.06, -R * 0.02)
-    head.add(ear)
+  if (L.species === 'koala') {
+    // Big round fluffy ears high on the skull, and the wide flat nose. These
+    // two features *are* the koala — everything else can stay humanoid.
+    for (const s of [-1, 1]) {
+      const ear = ellipsoid(R * 0.42, R * 0.44, R * 0.18, L.skin, 12)
+      ear.position.set(s * R * 0.88, R * 0.52, -R * 0.08)
+      head.add(ear)
+      const inner = ellipsoid(R * 0.24, R * 0.26, R * 0.1, 0xd8b8c0, 10)
+      inner.position.set(s * R * 0.86, R * 0.52, R * 0.02)
+      head.add(inner)
+    }
+    const kNose = ellipsoid(R * 0.17, R * 0.26, R * 0.12, INK, 10)
+    kNose.position.set(0, -R * 0.12, R * 0.88)
+    head.add(kNose)
+  } else {
+    for (const s of [-1, 1]) {
+      const ear = ellipsoid(R * 0.1, R * 0.17, R * 0.13, L.skin, 8)
+      ear.position.set(s * R * 0.97, -R * 0.06, -R * 0.02)
+      head.add(ear)
+    }
   }
 
   /**
@@ -477,37 +606,37 @@ export function createCharacter(look = {}) {
   const face = new THREE.Group()
   head.add(face)
 
-  const eyeX = R * 0.35
+  const eyeX = R * 0.34
   const eyeY = R * 0.01
-  const browY = R * 0.33
+  const browY = R * 0.36
   for (const s of [-1, 1]) {
-    // Soft almond, wider than tall and barely proud of the cheek.
-    const eye = ellipsoid(R * 0.145, R * 0.185, R * 0.05, CHAR.eye, 14)
-    eye.position.set(s * eyeX, eyeY, surfaceZ(eyeX, eyeY) - R * 0.028)
-    eye.castShadow = false
-    face.add(eye)
+    /**
+     * White sclera under a dark pupil. Dark-only eyes vanished into the
+     * shadow under the fringe and the whole face read as a smudge — the white
+     * is what makes a face legible at this camera distance, the same trick
+     * every character in this genre leans on.
+     */
+    const sclera = ellipsoid(R * 0.15, R * 0.19, R * 0.055, ACCENT.white, 14)
+    sclera.position.set(s * eyeX, eyeY, surfaceZ(eyeX, eyeY) - R * 0.03)
+    sclera.castShadow = false
+    face.add(sclera)
 
-    // Catchlight, upper-inner and small — sitting on the eye rather than
-    // beside it, which is what stops it reading as a blemish.
-    const spark = ellipsoid(R * 0.038, R * 0.042, R * 0.022, ACCENT.white, 8)
-    spark.position.set(s * (eyeX - R * 0.035), eyeY + R * 0.07, surfaceZ(eyeX, eyeY) + R * 0.016)
+    const pupil = ellipsoid(R * 0.088, R * 0.12, R * 0.045, CHAR.eye, 10)
+    pupil.position.set(s * (eyeX - R * 0.01), eyeY - R * 0.005, surfaceZ(eyeX, eyeY) + R * 0.005)
+    pupil.castShadow = false
+    face.add(pupil)
+
+    const spark = ellipsoid(R * 0.028, R * 0.034, R * 0.02, ACCENT.white, 6)
+    spark.position.set(s * (eyeX - R * 0.04), eyeY + R * 0.04, surfaceZ(eyeX, eyeY) + R * 0.038)
     spark.castShadow = false
     face.add(spark)
 
-    // Brows: short, thin, and angled. A thick bar reads as a scowl.
-    const browBar = boxMesh(R * 0.19, R * 0.036, R * 0.04, L.hair, R * 0.015)
+    // Brows: short, thin, high enough to clear the fringe line.
+    const browBar = boxMesh(R * 0.17, R * 0.032, R * 0.04, L.hair, R * 0.013)
     browBar.position.set(s * eyeX, browY, surfaceZ(eyeX, browY) - R * 0.006)
-    browBar.rotation.z = s * -0.16
+    browBar.rotation.z = s * -0.14
     browBar.castShadow = false
     face.add(browBar)
-
-    // A hint of warmth on the cheek.
-    const cheekY = -R * 0.2
-    const cheekX = R * 0.52
-    const blush = ellipsoid(R * 0.11, R * 0.06, R * 0.03, NATURE.hibiscus, 8)
-    blush.position.set(s * cheekX, cheekY, surfaceZ(cheekX, cheekY) - R * 0.012)
-    blush.castShadow = false
-    face.add(blush)
   }
 
   // Just enough nose to break the profile.
@@ -627,6 +756,20 @@ export function createCharacter(look = {}) {
   if (L.accessory === 'tie') chest.add(tie(L.accessoryColor))
   else if (L.accessory === 'apron') chest.add(apron(L.accessoryColor))
   else if (L.accessory === 'backpack') chest.add(backpack(L.accessoryColor))
+  else if (L.accessory === 'sash') chest.add(sash(L.accessoryColor))
+  else if (L.accessory === 'vr') head.add(vrGoggles(R))
+  else if (L.accessory === 'mane') chest.add(mane(L.accessoryColor))
+
+  // A frangipani tucked over the ear, the way dancers wear one.
+  if (L.hairFlower) {
+    const petals = ellipsoid(R * 0.16, R * 0.13, R * 0.13, L.hairFlower, 8)
+    petals.position.set(R * 0.82, R * 0.42, R * 0.42)
+    head.add(petals)
+    const heart = ellipsoid(R * 0.06, R * 0.06, R * 0.06, 0xf2cc57, 6)
+    heart.position.set(R * 0.86, R * 0.44, R * 0.5)
+    heart.castShadow = false
+    head.add(heart)
+  }
 
   root.scale.setScalar(L.scale)
 
