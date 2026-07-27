@@ -160,7 +160,9 @@ export function mergeByMaterial(root, { castShadow = true, receiveShadow = true 
     if (!geos.length) continue
     const merged = mergeBuffers(geos)
     const mesh = new THREE.Mesh(merged, material)
-    mesh.castShadow = castShadow && !material.transparent
+    // `noShadow` is for casters thinner than a shadow-map texel. They cannot
+    // resolve into a solid shadow and come back as a dashed black line instead.
+    mesh.castShadow = castShadow && !material.transparent && !material.userData?.noShadow
     mesh.receiveShadow = receiveShadow
     out.add(mesh)
   }

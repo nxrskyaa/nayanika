@@ -67,10 +67,51 @@ export class Input {
     // --- pointer ------------------------------------------------------
     this._pointers = new Map()
 
+    /** Live touch points, for the pinch gesture. */
+    this._touches = new Map()
+    this._pinchDist = 0
+
+    /**
+     * Span between the two pinch fingers, ignoring whichever one is driving
+     * the movement stick.
+     *
+     * The normal phone grip is left thumb walking and right thumb looking —
+     * two pointers down at all times. Counting those as a pinch would zoom the
+     * camera every time the player walked and looked at once, so the stick's
+     * finger never takes part.
+     */
+    const pinchIds = () => {
+      const ids = []
+      for (const id of this._touches.keys()) {
+        if (this.stick.active && id === this.stick.id) continue
+        ids.push(id)
+      }
+      return ids
+    }
+    const pinchSpan = () => {
+      const ids = pinchIds()
+      if (ids.length < 2) return 0
+      const a = this._touches.get(ids[0])
+      const b = this._touches.get(ids[1])
+      return Math.hypot(a.x - b.x, a.y - b.y)
+    }
+    this._pinchIds = pinchIds
+    this._pinchSpan = pinchSpan
+
     this._onPointerDown = (e) => {
       if (!this.enabled) return
       if (e.pointerType === 'touch') {
         this.touchActive = true
+        this._touches.set(e.pointerId, { x: e.clientX, y: e.clientY })
+        // A second look-side finger starts a pinch. Hand back the look role so
+        // the camera does not swing while the player is zooming.
+        if (pinchIds().length >= 2) {
+          this._pinchDist = pinchSpan()
+          this.lookTouch.active = false
+          this.lookTouch.id = -1
+          this._pointers.set(e.pointerId, e)
+          return
+        }
         const left = e.clientX < window.innerWidth * 0.5
         if (left && !this.stick.active) {
           this.stick.active = true
@@ -99,6 +140,20 @@ export class Input {
     this._onPointerMove = (e) => {
       if (!this.enabled) return
       if (e.pointerType === 'touch') {
+        if (this._touches.has(e.pointerId)) {
+          this._touches.set(e.pointerId, { x: e.clientX, y: e.clientY })
+        }
+        // Two look-side fingers: spreading pulls the camera in, pinching pushes
+        // it out, which is the direction every touch UI uses. The stick keeps
+        // working underneath so the player can still walk while zooming.
+        if (pinchIds().length >= 2) {
+          const span = pinchSpan()
+          if (this._pinchDist > 0 && span > 0) {
+            this.zoomDelta += ((this._pinchDist - span) / 24) * 0.9
+          }
+          this._pinchDist = span
+          return
+        }
         if (this.stick.active && e.pointerId === this.stick.id) {
           const dx = e.clientX - this.stick.ox
           const dy = e.clientY - this.stick.oy
@@ -128,6 +183,16 @@ export class Input {
     this._onPointerUp = (e) => {
       this._pointers.delete(e.pointerId)
       if (e.pointerType === 'touch') {
+        const wasPinching = this._pinchIds().length >= 2
+        this._touches.delete(e.pointerId)
+        this._pinchDist = this._pinchIds().length >= 2 ? this._pinchSpan() : 0
+        // Lifting out of a pinch must not be read as a tap on whatever is
+        // under the finger.
+        if (wasPinching) {
+          this.lookTouch.active = false
+          this.lookTouch.id = -1
+          return
+        }
         if (e.pointerId === this.stick.id) {
           this.stick.active = false
           this.stick.id = -1
@@ -227,6 +292,8 @@ export class Input {
   }
 
   reset() {
+    this._touches?.clear()
+    this._pinchDist = 0
     this.keys.clear()
     this.move.x = 0
     this.move.y = 0

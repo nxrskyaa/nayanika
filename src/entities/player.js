@@ -55,8 +55,9 @@ export class Player {
     this.syncTransform()
   }
 
+  /** Stand on the surface that is drawn, not the analytic one under it. */
   groundHeight(dir = this.dir) {
-    return Math.max(this.terrain.heightAt(dir), 0)
+    return Math.max(this.terrain.renderHeightAt(dir), 0)
   }
 
   get groundElevation() {

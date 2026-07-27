@@ -298,23 +298,42 @@ const HAIR_BUILDERS = {
     g.add(hairBack)
     return g
   },
-  /** Udeng — the folded headcloth. Knot at the front, tail at the back. */
+  /**
+   * Udeng — the folded headcloth.
+   *
+   * A real one is a band low around the brow with a peak folded up at the
+   * front and a knot behind; the crown of the head stays visible. The previous
+   * version was a single slab wider and deeper than the skull sat on top of it,
+   * so from behind the character was a white brick.
+   */
   udeng(color, R) {
     const g = new THREE.Group()
-    const hairCap = ellipsoid(R * 1.06, R * 0.98, R * 1.06, color, 12)
-    hairCap.position.y = R * 0.08
-    g.add(hairCap)
-    const band = boxMesh(R * 2.16, R * 0.68, R * 2.1, ACCENT.polengWhite, R * 0.2)
-    band.position.y = R * 0.5
+    const cap = ellipsoid(R * 1.06, R * 1.0, R * 1.06, color, 14)
+    cap.position.y = R * 0.1
+    g.add(cap)
+
+    // Low band around the brow — only as wide as the head.
+    const band = ellipsoid(R * 1.1, R * 0.3, R * 1.1, ACCENT.polengWhite, 14)
+    band.position.y = R * 0.46
     g.add(band)
-    const knot = boxMesh(R * 0.34, R * 0.5, R * 0.34, ACCENT.polengWhite, R * 0.1)
-    knot.position.set(0, R * 0.92, R * 0.86)
-    knot.rotation.z = 0.3
+    const trim = ellipsoid(R * 1.11, R * 0.07, R * 1.11, BUILD.gold, 14)
+    trim.position.y = R * 0.3
+    g.add(trim)
+
+    // The folded peak, rising and tipping forward over the forehead.
+    const peak = boxMesh(R * 0.16, R * 0.78, R * 0.72, ACCENT.polengWhite, R * 0.06)
+    peak.position.set(0, R * 0.92, R * 0.4)
+    peak.rotation.x = -0.42
+    g.add(peak)
+    const wing = boxMesh(R * 0.9, R * 0.5, R * 0.16, ACCENT.polengWhite, R * 0.07)
+    wing.position.set(0, R * 0.74, R * 0.72)
+    wing.rotation.x = -0.5
+    g.add(wing)
+
+    // Knot at the back.
+    const knot = boxMesh(R * 0.42, R * 0.32, R * 0.3, ACCENT.polengWhite, R * 0.1)
+    knot.position.set(0, R * 0.56, -R * 1.0)
     g.add(knot)
-    const tail = boxMesh(R * 0.9, R * 0.5, R * 0.3, ACCENT.polengWhite, R * 0.1)
-    tail.position.set(0, R * 0.62, -R * 1.02)
-    tail.rotation.x = -0.35
-    g.add(tail)
     return g
   },
   /**

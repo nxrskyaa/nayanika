@@ -53,8 +53,16 @@ export function powerLine(a, b, sag = 0.6, color = INK) {
   for (let i = 0; i <= 10; i++) pts.push(curve.getPoint(i / 10))
   const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.03, 4, false)
   // One shared material, or every span becomes its own draw call.
-  if (!_wireMaterial) _wireMaterial = new THREE.MeshBasicMaterial({ color })
-  return new THREE.Mesh(geo, _wireMaterial)
+  if (!_wireMaterial) {
+    _wireMaterial = new THREE.MeshBasicMaterial({ color })
+    // A 3cm cable against a 3.3cm shadow texel cannot cast a solid shadow: it
+    // came out as a dashed black line ruled across the road, and worse on a
+    // phone where the map covers more ground per texel.
+    _wireMaterial.userData.noShadow = true
+  }
+  const m = new THREE.Mesh(geo, _wireMaterial)
+  m.castShadow = false
+  return m
 }
 
 /** Where a pole's cables attach, in the pole's own local space. */

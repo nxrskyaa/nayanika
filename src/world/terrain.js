@@ -33,6 +33,20 @@ const FEATURES = [
   { dir: dirFromDeg(-64, 170), radius: 0.28, amount: 10, power: 2.0 }, // south massif
 ]
 
+/**
+ * The six cube faces the terrain mesh is built from: [normal, up, right].
+ * Shared so renderHeightAt() can reproduce exactly the surface buildGeometry()
+ * draws — they must never drift apart.
+ */
+const CUBE_FACES = [
+  [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1)],
+  [new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)],
+  [new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0)],
+  [new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, -1), new THREE.Vector3(1, 0, 0)],
+  [new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0), new THREE.Vector3(1, 0, 0)],
+  [new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 1, 0), new THREE.Vector3(-1, 0, 0)],
+]
+
 const _d = new THREE.Vector3()
 const _e = new THREE.Vector3()
 const _n = new THREE.Vector3()
@@ -41,6 +55,7 @@ const _p1 = new THREE.Vector3()
 const _p2 = new THREE.Vector3()
 const _t1 = new THREE.Vector3()
 const _t2 = new THREE.Vector3()
+const _c0 = new THREE.Vector3()
 const _cA = new THREE.Color()
 const _cB = new THREE.Color()
 
@@ -126,9 +141,70 @@ export class Terrain {
     return this._cacheVal
   }
 
+  /**
+   * Height of the terrain *as it is actually drawn*.
+   *
+   * The mesh is a quad-sphere: its vertices sit exactly on heightAt(), but the
+   * triangles spanning between them are flat, so across a cell the drawn
+   * surface stands up to 0.4m above the analytic height. Anything positioned
+   * from heightAt() alone is therefore placed underneath ground the player can
+   * see — roads showed wedges of grass through the tarmac, and props sank into
+   * the hillside. Taking the higher of the two puts everything on the surface
+   * that is really on screen.
+   */
+  renderHeightAt(dir) {
+    const x = dir.x
+    const y = dir.y
+    const z = dir.z
+    const analytic = this.heightAt(dir)
+
+    // Which cube face, and where on it.
+    let face = 0
+    let best = -2
+    for (let f = 0; f < 6; f++) {
+      const n = CUBE_FACES[f][0]
+      const v = x * n.x + y * n.y + z * n.z
+      if (v > best) {
+        best = v
+        face = f
+      }
+    }
+    if (best <= 1e-6) return analytic
+
+    const [normal, up, right] = CUBE_FACES[face]
+    const a = (x * right.x + y * right.y + z * right.z) / best
+    const b = (x * up.x + y * up.y + z * up.z) / best
+
+    const seg = PLANET.faceSegments
+    const fi = ((a + 1) * 0.5) * seg
+    const fj = ((b + 1) * 0.5) * seg
+    const i = Math.min(seg - 1, Math.max(0, Math.floor(fi)))
+    const j = Math.min(seg - 1, Math.max(0, Math.floor(fj)))
+    const s = fi - i
+    const tt = fj - j
+
+    const corner = (ii, jj) => {
+      const ca = (ii / seg) * 2 - 1
+      const cb = (jj / seg) * 2 - 1
+      _c0.copy(normal).addScaledVector(right, ca).addScaledVector(up, cb).normalize()
+      return this.heightAt(_c0)
+    }
+
+    // buildGeometry splits each quad along the (i,j)–(i+1,j+1) diagonal.
+    let mesh
+    if (s + tt <= 1) {
+      const h00 = corner(i, j)
+      mesh = h00 + (corner(i + 1, j) - h00) * s + (corner(i, j + 1) - h00) * tt
+    } else {
+      const h11 = corner(i + 1, j + 1)
+      mesh = h11 + (corner(i, j + 1) - h11) * (1 - s) + (corner(i + 1, j) - h11) * (1 - tt)
+    }
+    return mesh > analytic ? mesh : analytic
+  }
+
   /** World-space point on the ground for a direction. */
   surfacePoint(dir, offset = 0, out = new THREE.Vector3()) {
-    const h = Math.max(this.heightAt(dir), this.seaLevel)
+    const h = Math.max(this.renderHeightAt(dir), this.seaLevel)
     return out.copy(dir).normalize().multiplyScalar(this.radius + h + offset)
   }
 
@@ -219,14 +295,7 @@ export class Terrain {
    * rather than the triangles so the six faces meet without a visible seam.
    */
   buildGeometry(segments = PLANET.faceSegments) {
-    const faces = [
-      [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1)],
-      [new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)],
-      [new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0)],
-      [new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, -1), new THREE.Vector3(1, 0, 0)],
-      [new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0), new THREE.Vector3(1, 0, 0)],
-      [new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 1, 0), new THREE.Vector3(-1, 0, 0)],
-    ]
+    const faces = CUBE_FACES
 
     const per = (segments + 1) * (segments + 1)
     const total = per * 6

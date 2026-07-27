@@ -508,5 +508,5 @@ frame()
 
 // A tiny console handle for poking at the world during development.
 if (import.meta.env?.DEV) {
-  window.NAYANIKA = { stage, sky, dayNight, terrain, world, quests, get player() { return player }, followCam, audio }
+  window.NAYANIKA = { stage, sky, dayNight, terrain, world, quests, get player() { return player }, followCam, audio, input }
 }
