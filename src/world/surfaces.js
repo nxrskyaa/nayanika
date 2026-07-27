@@ -80,6 +80,36 @@ export function stripBetween(left, right, ups, color, opts = {}) {
     }
   }
 
+  /**
+   * Callers hand the two edges over in whichever order suits them — a kerb is
+   * authored top-to-bottom, a pavement inner-to-outer, and which of those is
+   * "left" flips with the side of the road. Rather than make every call site
+   * reason about winding, check the first triangle against the surface normal
+   * and reverse the whole strip if it came out inside out.
+   *
+   * Getting this wrong is invisible in the geometry and total on screen:
+   * backface culling drops a reversed strip completely, which is how the left
+   * pavement and every zebra crossing turned into see-through gaps in the road.
+   */
+  _tmp.set(
+    positions[6] - positions[0],
+    positions[7] - positions[1],
+    positions[8] - positions[2],
+  )
+  _side.set(
+    positions[3] - positions[0],
+    positions[4] - positions[1],
+    positions[5] - positions[2],
+  )
+  _up.crossVectors(_tmp, _side)
+  if (_up.dot(ups[0]) < 0) {
+    for (let i = 0; i < indices.length; i += 3) {
+      const swap = indices[i + 1]
+      indices[i + 1] = indices[i + 2]
+      indices[i + 2] = swap
+    }
+  }
+
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
   geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3))

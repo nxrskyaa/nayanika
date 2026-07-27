@@ -75,7 +75,18 @@ export function toon(color, opts = {}) {
  * without needing a lift big enough to see from the side.
  */
 export function groundDecal(color, opts = {}) {
-  return toon(color, { ...opts, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })
+  return toon(color, {
+    ...opts,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -4,
+    // Double sided on purpose. These are flat ribbons laid on a curved planet;
+    // if one ever ends up wound the wrong way — a fold in a bend, a caller
+    // handing its edges over backwards — culling would delete it silently and
+    // leave a hole you can see the sky through. Nothing here has a back face
+    // worth hiding, so this costs nothing and removes the whole failure mode.
+    side: THREE.DoubleSide,
+  })
 }
 
 /** Unlit flat colour — used for things that should not pick up the sun at all. */

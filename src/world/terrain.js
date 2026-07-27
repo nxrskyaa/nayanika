@@ -272,13 +272,21 @@ export class Terrain {
         }
       }
 
+      // The six cube faces are not all authored with the same handedness: on
+      // three of them `right x up` points along the face normal and on three it
+      // points the other way. Emitting one fixed index order therefore wound
+      // four of the six faces inside out, and backface culling made two thirds
+      // of the planet's ground invisible — you could see straight through the
+      // island. Pick the order per face instead.
+      const outward = _t1.crossVectors(right, up).dot(normal) > 0
       for (let j = 0; j < segments; j++) {
         for (let i = 0; i < segments; i++) {
           const a = base + j * (segments + 1) + i
           const b = a + 1
           const c = a + segments + 1
           const d = c + 1
-          indices.push(a, c, b, b, c, d)
+          if (outward) indices.push(a, b, d, a, d, c)
+          else indices.push(a, d, b, a, c, d)
         }
       }
     }

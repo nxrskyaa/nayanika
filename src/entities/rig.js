@@ -461,32 +461,57 @@ export function createCharacter(look = {}) {
     head.add(ear)
   }
 
-  // Face. Big eyes with a catchlight — at this camera distance the eyes are
-  // most of what carries the character, so they get the detail budget.
+  /**
+   * Face.
+   *
+   * Every feature is dropped onto the skull's actual surface rather than onto
+   * one flat plane in front of it. On a plane the eyes bulge off the middle of
+   * the face while the mouth and brows — further from the centre, where the
+   * head curves away — sink inside it, and the whole face reads as stuck on.
+   */
+  const surfaceZ = (x, y) => {
+    const k = 1 - (x / R) ** 2 - (y / (R * 0.98)) ** 2
+    return R * 0.94 * Math.sqrt(Math.max(0.05, k))
+  }
+
   const face = new THREE.Group()
-  face.position.z = R * 0.9
   head.add(face)
+
+  const eyeX = R * 0.34
+  const eyeY = R * 0.02
+  const browY = R * 0.3
   for (const s of [-1, 1]) {
-    const eye = ellipsoid(R * 0.16, R * 0.21, R * 0.1, CHAR.eye, 10)
-    eye.position.set(s * R * 0.36, -R * 0.02, 0)
+    // Flatter than they are wide, and only just proud of the cheek.
+    const eye = ellipsoid(R * 0.13, R * 0.175, R * 0.055, CHAR.eye, 12)
+    eye.position.set(s * eyeX, eyeY, surfaceZ(eyeX, eyeY) - R * 0.025)
     eye.castShadow = false
     face.add(eye)
 
-    const spark = ellipsoid(R * 0.055, R * 0.065, R * 0.04, ACCENT.white, 6)
-    spark.position.set(s * R * 0.36 + R * 0.05, R * 0.06, R * 0.07)
+    const spark = ellipsoid(R * 0.042, R * 0.05, R * 0.028, ACCENT.white, 6)
+    spark.position.set(s * eyeX + R * 0.04, eyeY + R * 0.055, surfaceZ(eyeX, eyeY) + R * 0.012)
     spark.castShadow = false
     face.add(spark)
 
-    const browBar = boxMesh(R * 0.26, R * 0.05, R * 0.06, L.hair, R * 0.02)
-    browBar.position.set(s * R * 0.37, R * 0.29, -R * 0.02)
-    browBar.rotation.z = s * -0.14
+    const browBar = boxMesh(R * 0.23, R * 0.048, R * 0.05, L.hair, R * 0.02)
+    browBar.position.set(s * eyeX, browY, surfaceZ(eyeX, browY) - R * 0.008)
+    browBar.rotation.z = s * -0.12
     browBar.castShadow = false
     face.add(browBar)
   }
-  const mouth = boxMesh(R * 0.2, R * 0.045, R * 0.05, CHAR.eye, R * 0.02)
-  mouth.position.set(0, -R * 0.42, -R * 0.1)
+
+  // Just enough nose to break the profile, and a small closed smile.
+  const noseY = -R * 0.13
+  const nose = ellipsoid(R * 0.052, R * 0.045, R * 0.045, L.skin, 8)
+  nose.position.set(0, noseY, surfaceZ(0, noseY))
+  nose.castShadow = false
+  face.add(nose)
+
+  const mouthY = -R * 0.36
+  const mouth = boxMesh(R * 0.16, R * 0.04, R * 0.045, CHAR.eye, R * 0.016)
+  mouth.position.set(0, mouthY, surfaceZ(0, mouthY) - R * 0.01)
   mouth.castShadow = false
   face.add(mouth)
+
   const brow = new THREE.Group()
   face.add(brow)
 

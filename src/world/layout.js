@@ -19,6 +19,21 @@ function jitterPolyline(rng, ax, az, bx, bz, segments, wobble) {
       z: az + (bz - az) * t + rngRange(rng, -wobble, wobble) * edge,
     })
   }
+
+  /**
+   * Smooth the noise out. The jitter is independent per point, so adjacent
+   * points can sit a metre apart sideways over a metre of forward travel —
+   * a turn far tighter than the road is wide. Ribbon a 6.6m road along that
+   * and the inner edge crosses over itself; the folded quads wind backwards
+   * and get culled, which is exactly what "holes in the road" looks like.
+   * Four binomial passes leave a gentle curve and no fold.
+   */
+  for (let pass = 0; pass < 4; pass++) {
+    for (let i = 1; i < pts.length - 1; i++) {
+      pts[i].x = (pts[i - 1].x + pts[i].x * 2 + pts[i + 1].x) * 0.25
+      pts[i].z = (pts[i - 1].z + pts[i].z * 2 + pts[i + 1].z) * 0.25
+    }
+  }
   return pts
 }
 
