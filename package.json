@@ -1,0 +1,18 @@
+{
+  "name": "nayanika",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "It's a small planet, but someone's gotta make the deliveries.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "vite": "^6.0.7"
+  }
+}

@@ -1,0 +1,867 @@
+/* ------------------------------------------------------------------ */
+/* fonts                                                               */
+/* ------------------------------------------------------------------ */
+
+@font-face {
+  font-family: 'Nayanika Hand';
+  src: url('/fonts/PatrickHand-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Nayanika Display';
+  src: url('/fonts/ChakraPetch-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+/* ------------------------------------------------------------------ */
+/* base                                                                */
+/* ------------------------------------------------------------------ */
+
+:root {
+  --ink: #16181a;
+  --paper: #f2efe3;
+  --paper-dim: #e2ded0;
+  --slate: #5b666b;
+  --red: #d0303f;
+  --shadow: 3px 3px 0 rgba(22, 24, 26, 0.9);
+  --shadow-sm: 2px 2px 0 rgba(22, 24, 26, 0.85);
+  --ui-scale: 1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #63cfc5;
+  touch-action: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  font-family: 'Nayanika Hand', 'Comic Sans MS', system-ui, sans-serif;
+  color: var(--ink);
+  user-select: none;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+}
+
+#scene {
+  position: absolute;
+  inset: 0;
+}
+
+#scene canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  overflow: hidden;
+}
+
+#ui .clickable {
+  pointer-events: auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* buttons                                                             */
+/* ------------------------------------------------------------------ */
+
+.btn {
+  pointer-events: auto;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 2.5px solid var(--ink);
+  border-radius: 9px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition:
+    transform 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 120ms ease;
+}
+
+.btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 rgba(22, 24, 26, 0.9);
+  background: #fbf9ef;
+}
+
+.btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 rgba(22, 24, 26, 0.9);
+}
+
+.btn svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.btn.is-off {
+  background: var(--paper-dim);
+  opacity: 0.72;
+}
+
+.btn .badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--red);
+  border: 2.5px solid var(--ink);
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity 180ms ease, transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.btn .badge.on {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ------------------------------------------------------------------ */
+/* hud layout                                                          */
+/* ------------------------------------------------------------------ */
+
+#hud-right {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 14px;
+  pointer-events: none;
+}
+
+#hud-right .stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 34px;
+}
+
+#zone-title {
+  position: absolute;
+  left: 26px;
+  bottom: 26px;
+  font-family: 'Nayanika Display', 'Arial Black', sans-serif;
+  font-weight: 700;
+  font-size: clamp(26px, 4.4vw, 44px);
+  line-height: 0.98;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #fbfaf4;
+  white-space: pre-line;
+  -webkit-text-stroke: 2.5px var(--ink);
+  paint-order: stroke fill;
+  text-shadow: 4px 5px 0 rgba(30, 46, 44, 0.55);
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 520ms ease, transform 640ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#zone-title.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#quest-banner {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translate(-50%, -18px);
+  max-width: min(520px, 74vw);
+  padding: 9px 18px;
+  background: var(--paper);
+  border: 2.5px solid var(--ink);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  font-size: 16px;
+  line-height: 1.25;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 340ms ease, transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#quest-banner.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+#quest-banner .tick {
+  color: #2f8f52;
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------------ */
+/* speech bubbles                                                      */
+/* ------------------------------------------------------------------ */
+
+#bubbles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.bubble {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  max-width: 260px;
+  min-width: 44px;
+  padding: 10px 14px 11px;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 5px;
+  font-size: 17px;
+  line-height: 1.32;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: pre-wrap;
+  will-change: transform;
+}
+
+.bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -13px;
+  width: 0;
+  height: 0;
+  margin-left: -9px;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 13px solid var(--ink);
+}
+
+.bubble::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 0;
+  height: 0;
+  margin-left: -6px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 9px solid var(--paper);
+  z-index: 1;
+}
+
+.bubble.pop {
+  animation: bubble-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes bubble-pop {
+  from {
+    transform: translate(-50%, -100%) scale(0.72);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -100%) scale(1);
+    opacity: 1;
+  }
+}
+
+.bubble.hint {
+  padding: 7px 12px 8px;
+  min-width: 0;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.bubble.hint .dots {
+  display: flex;
+  gap: 4px;
+}
+
+.bubble.hint .dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--red);
+  animation: dot-bob 1.15s ease-in-out infinite;
+}
+
+.bubble.hint .dots i:nth-child(2) {
+  animation-delay: 0.13s;
+}
+.bubble.hint .dots i:nth-child(3) {
+  animation-delay: 0.26s;
+}
+
+@keyframes dot-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
+  40% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+.bubble .caret {
+  display: inline-block;
+  width: 0.5em;
+  opacity: 0;
+}
+
+.bubble .speaker {
+  display: block;
+  font-family: 'Nayanika Display', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--slate);
+  margin-bottom: 3px;
+}
+
+.bubble .more {
+  display: block;
+  text-align: right;
+  font-size: 13px;
+  color: var(--slate);
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.bubble .more.on {
+  opacity: 1;
+  animation: nudge 1.4s ease-in-out infinite;
+}
+
+@keyframes nudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+}
+
+.emote-bubble {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  animation: bubble-pop 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ------------------------------------------------------------------ */
+/* panels                                                              */
+/* ------------------------------------------------------------------ */
+
+.panel {
+  position: absolute;
+  top: 22px;
+  right: 84px;
+  width: min(340px, calc(100vw - 110px));
+  max-height: calc(100vh - 44px);
+  padding: 16px 18px 18px;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+  overflow-y: auto;
+  opacity: 0;
+  transform: translateX(16px) scale(0.97);
+  transform-origin: top right;
+  transition: opacity 200ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  visibility: hidden;
+}
+
+.panel.open {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  visibility: visible;
+}
+
+.panel h2 {
+  margin: 0 0 12px;
+  font-family: 'Nayanika Display', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel h2 .count {
+  color: var(--slate);
+  font-size: 12px;
+}
+
+.panel .close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--slate);
+}
+
+.quest-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 9px 0;
+  border-top: 2px dashed rgba(22, 24, 26, 0.18);
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.quest-row:first-of-type {
+  border-top: none;
+}
+
+.quest-row .tickbox {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin-top: 2px;
+  border: 2.5px solid var(--ink);
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.quest-row.done {
+  opacity: 0.5;
+}
+
+.quest-row.done .label {
+  text-decoration: line-through;
+}
+
+.quest-row.active .tickbox {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(208, 48, 63, 0.16);
+}
+
+.quest-row .where {
+  display: block;
+  font-size: 13px;
+  color: var(--slate);
+  margin-top: 2px;
+}
+
+.empty-note {
+  font-size: 15px;
+  color: var(--slate);
+  padding: 6px 0 2px;
+}
+
+/* wardrobe */
+
+.wardrobe-group {
+  margin-bottom: 14px;
+}
+
+.wardrobe-group .title {
+  font-family: 'Nayanika Display', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--slate);
+  margin-bottom: 6px;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.swatch {
+  width: 30px;
+  height: 30px;
+  border: 2.5px solid var(--ink);
+  border-radius: 7px;
+  cursor: pointer;
+  padding: 0;
+  background: #fff;
+  transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.swatch:hover {
+  transform: translateY(-2px);
+}
+
+.swatch.on {
+  box-shadow: 0 0 0 3px rgba(208, 48, 63, 0.35);
+}
+
+.swatch.text {
+  width: auto;
+  min-width: 30px;
+  padding: 0 9px;
+  font-family: 'Nayanika Hand', sans-serif;
+  font-size: 14px;
+  text-transform: capitalize;
+  background: var(--paper);
+}
+
+/* emotes */
+
+#emote-bar {
+  position: absolute;
+  right: 84px;
+  top: 138px;
+  display: flex;
+  gap: 8px;
+  padding: 9px 11px;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 26px;
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(14px);
+  transition: opacity 180ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#emote-bar.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+#emote-bar button {
+  width: 36px;
+  height: 36px;
+  border: 2.5px solid var(--ink);
+  border-radius: 50%;
+  background: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#emote-bar button:hover {
+  transform: translateY(-3px) scale(1.06);
+}
+
+/* ------------------------------------------------------------------ */
+/* touch controls                                                      */
+/* ------------------------------------------------------------------ */
+
+#touch-stick {
+  position: absolute;
+  width: 118px;
+  height: 118px;
+  border: 3px solid rgba(22, 24, 26, 0.55);
+  border-radius: 50%;
+  background: rgba(242, 239, 227, 0.28);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+
+#touch-stick.on {
+  opacity: 1;
+}
+
+#touch-stick .knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 50px;
+  height: 50px;
+  margin: -25px 0 0 -25px;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper);
+}
+
+#touch-jump {
+  position: absolute;
+  right: 26px;
+  bottom: 30px;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  font-family: 'Nayanika Display', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  display: none;
+}
+
+body.touch #touch-jump {
+  display: grid;
+}
+
+/* ------------------------------------------------------------------ */
+/* intro + loading                                                     */
+/* ------------------------------------------------------------------ */
+
+#intro {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #63cfc5;
+  pointer-events: auto;
+  z-index: 40;
+  transition: opacity 700ms ease;
+}
+
+#intro.gone {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#intro .inner {
+  text-align: center;
+  padding: 24px;
+  max-width: 560px;
+}
+
+#intro h1 {
+  margin: 0;
+  font-family: 'Nayanika Display', sans-serif;
+  font-size: clamp(46px, 11vw, 104px);
+  line-height: 0.94;
+  letter-spacing: 0.06em;
+  color: #fbfaf4;
+  -webkit-text-stroke: 3.5px var(--ink);
+  paint-order: stroke fill;
+  text-shadow: 7px 8px 0 rgba(30, 46, 44, 0.5);
+}
+
+#intro p.tag {
+  margin: 18px auto 26px;
+  max-width: 380px;
+  font-size: 19px;
+  line-height: 1.35;
+  color: #1d3a38;
+}
+
+#intro .bar {
+  width: 220px;
+  height: 12px;
+  margin: 0 auto;
+  border: 2.5px solid var(--ink);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.35);
+  overflow: hidden;
+}
+
+#intro .bar span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--ink);
+  transition: width 260ms ease;
+}
+
+#intro .status {
+  margin-top: 10px;
+  font-size: 15px;
+  color: #1d3a38;
+  min-height: 20px;
+  text-transform: lowercase;
+}
+
+#intro .start {
+  margin-top: 22px;
+  padding: 12px 28px;
+  font-family: 'Nayanika Display', sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 300ms ease, transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+#intro .start.on {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+#intro .start:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 rgba(22, 24, 26, 0.9);
+}
+
+#intro .hint {
+  margin-top: 18px;
+  font-size: 14px;
+  color: #1d3a38;
+  opacity: 0.75;
+}
+
+/* ------------------------------------------------------------------ */
+/* delivery flash + ending                                             */
+/* ------------------------------------------------------------------ */
+
+#toast {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  transform: translate(-50%, -50%) scale(0.86);
+  padding: 14px 26px;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  font-family: 'Nayanika Display', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 260ms ease, transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+#ending {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(99, 207, 197, 0.92);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 800ms ease;
+  z-index: 30;
+}
+
+#ending.show {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+#ending .card {
+  text-align: center;
+  padding: 30px 34px;
+  max-width: 460px;
+}
+
+#ending h2 {
+  margin: 0 0 6px;
+  font-family: 'Nayanika Display', sans-serif;
+  font-size: clamp(28px, 6vw, 52px);
+  letter-spacing: 0.05em;
+  color: #fbfaf4;
+  -webkit-text-stroke: 3px var(--ink);
+  paint-order: stroke fill;
+  text-shadow: 5px 6px 0 rgba(30, 46, 44, 0.5);
+}
+
+#ending p {
+  font-size: 19px;
+  line-height: 1.4;
+  color: #17312f;
+}
+
+/* ------------------------------------------------------------------ */
+/* responsive                                                          */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 640px) {
+  .btn {
+    width: 42px;
+    height: 42px;
+  }
+  .btn svg {
+    width: 21px;
+    height: 21px;
+  }
+  #hud-right {
+    top: 14px;
+    right: 14px;
+    gap: 10px;
+  }
+  #hud-right .stack {
+    margin-top: 26px;
+  }
+  .panel {
+    right: 14px;
+    top: 68px;
+    width: calc(100vw - 28px);
+    max-height: 60vh;
+  }
+  #emote-bar {
+    right: 14px;
+    top: 240px;
+  }
+  #zone-title {
+    left: 16px;
+    bottom: 18px;
+  }
+  .bubble {
+    font-size: 15px;
+    max-width: 220px;
+  }
+  #quest-banner {
+    font-size: 13px;
+    top: 14px;
+    max-width: 62vw;
+  }
+}
