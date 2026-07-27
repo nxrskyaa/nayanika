@@ -1106,32 +1106,44 @@ export function banyan(rng, opts = {}) {
  */
 export function riceTerrace(rng, opts = {}) {
   const g = group()
-  const steps = opts.steps ?? rngInt(rng, 4, 7)
-  const width = Math.min(opts.width ?? rngRange(rng, 8, 12), 12)
-  const run = opts.run ?? rngRange(rng, 2.4, 3.4)
-  const rise = opts.rise ?? rngRange(rng, 0.45, 0.8)
+  const steps = opts.steps ?? rngInt(rng, 3, 5)
+  const width = Math.min(opts.width ?? rngRange(rng, 6, 9), 9)
+  const run = opts.run ?? rngRange(rng, 2.2, 3.0)
+  const rise = opts.rise ?? rngRange(rng, 0.4, 0.62)
+  /**
+   * How far each step is sunk below the placement origin.
+   *
+   * A terrace is cut into a hillside, not hung off it. Building the steps as
+   * thin slabs with a bund only along the front edge left every step
+   * cantilevered in mid-air, and because the whole flight is rigid and laid
+   * tangent to the planet, the far end climbed metres into the sky on any
+   * slope. Solid blocks that continue well below ground level hide both.
+   */
+  const bury = opts.bury ?? 2.6
 
   for (let i = 0; i < steps; i++) {
     const z = -steps * run * 0.5 + run * (i + 0.5)
-    const y = i * rise
-    g.add(at(box(width, rise + 0.14, 0.42, GROUND.dirt), 0, y + (rise + 0.14) / 2, z - run / 2))
+    const top = i * rise
+    const block = top + bury
+    g.add(at(box(width, block, run, GROUND.dirt), 0, top - block / 2, z))
 
     const stage = rng()
     const flooded = stage < 0.32
     const ripe = stage > 0.72
     const col = flooded ? GROUND.paddy : ripe ? GROUND.grassDry : GROUND.grass
-    g.add(at(box(width - 0.12, 0.12, run - 0.42, col), 0, y + rise + 0.06, z))
+    // Inset so the mud bund shows as a lip all the way round the water.
+    g.add(at(box(width - 0.55, 0.16, run - 0.5, col), 0, top + 0.03, z))
 
     if (!flooded) {
-      const tufts = rngInt(rng, 6, 12)
+      const tufts = rngInt(rng, 5, 10)
       for (let k = 0; k < tufts; k++) {
-        const th = rngRange(rng, 0.2, 0.42)
+        const th = rngRange(rng, 0.18, 0.36)
         g.add(
           at(
             box(0.08, th, 0.08, ripe ? GROUND.grassDry : NATURE.leafLight),
-            rngRange(rng, -width * 0.45, width * 0.45),
-            y + rise + th / 2 + 0.06,
-            z + rngRange(rng, -run * 0.28, run * 0.28),
+            rngRange(rng, -width * 0.4, width * 0.4),
+            top + th / 2 + 0.08,
+            z + rngRange(rng, -run * 0.26, run * 0.26),
           ),
         )
       }

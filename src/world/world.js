@@ -298,7 +298,7 @@ export class World {
     const scatterCount = zone.biome === 'forest' ? 130 : zone.biome === 'town' ? 44 : 78
     for (const s of scatterOffStreet(plan, scatterCount, seed + 77, urban ? 3.5 : 2.5, lots)) {
       const d = toDir(s.x, s.z, new THREE.Vector3())
-      const prop = this.makeNatureProp(zone, rng, s.scale)
+      const prop = this.makeNatureProp(zone, rng, s.scale, t.slopeAt(d))
       if (!prop) continue
       this.placeLocalYaw(prop, d, s.angle)
       g.add(prop)
@@ -399,7 +399,7 @@ export class World {
     return P.trafficCone(rng)
   }
 
-  makeNatureProp(zone, rng, scale) {
+  makeNatureProp(zone, rng, scale, slope = 0) {
     switch (zone.biome) {
       case 'beach': {
         const r = rng()
@@ -431,7 +431,8 @@ export class World {
         // The big terrace flights are placed by hand in addLandmarks so they
         // step down the ridge in order; these are the odds and ends between.
         const r = rng()
-        if (r < 0.14) return P.riceTerrace(rng, { steps: rngInt(rng, 3, 5), width: rngRange(rng, 7, 9) })
+        // Terraces only on ground gentle enough for a rigid flight to sit on.
+        if (r < 0.14 && slope < 0.16) return P.riceTerrace(rng, { steps: rngInt(rng, 3, 5), width: rngRange(rng, 7, 9) })
         if (r < 0.32) return P.palm(rng)
         if (r < 0.42) return P.balineseShrine(rng, 0.6)
         if (r < 0.52) return P.frangipani(rng, { scale: scale * 0.9 })
@@ -532,15 +533,17 @@ export class World {
       case 'rice-terrace': {
         // Flights of terraces stepping down the ridge, with a subak water
         // temple at the top where the irrigation is divided up.
-        for (let i = 0; i < 9; i++) {
-          const a = (i / 9) * Math.PI * 2
-          const r = rngRange(rng, 7, extent * 0.85)
-          put(
-            P.riceTerrace(rng, { steps: rngInt(rng, 4, 7), width: rngRange(rng, 9, 12) }),
-            Math.cos(a) * r,
-            Math.sin(a) * r,
-            a + Math.PI / 2,
-          )
+        // Flights step down the ridge, but only where the ground is gentle
+        // enough for a rigid one to sit flat. Anywhere steeper and the far end
+        // of the flight lifts clear of the hill.
+        for (let i = 0; i < 14; i++) {
+          const a = (i / 14) * Math.PI * 2 + rngRange(rng, -0.15, 0.15)
+          const r = rngRange(rng, 7, extent * 0.82)
+          const x = Math.cos(a) * r
+          const z = Math.sin(a) * r
+          const d = toDir(x, z, new THREE.Vector3())
+          if (t.slopeAt(d) > 0.17) continue
+          put(P.riceTerrace(rng, { steps: rngInt(rng, 3, 5), width: rngRange(rng, 7, 9) }), x, z, a + Math.PI / 2)
         }
         const shrine = P.meruTower(rng, 3, 0.6)
         const sd = put(shrine, 0, 2, Math.PI, 'rice-terrace:subak')
@@ -770,8 +773,11 @@ export class World {
       else if (h < 2.6) prop = rngChance(rng, 0.55) ? P.palm(rng) : rngChance(rng, 0.4) ? P.frangipani(rng, { scale: rngRange(rng, 0.8, 1.1) }) : P.rock(rng, { scale: rngRange(rng, 0.4, 1.2) })
       else if (rngChance(rng, 0.38)) prop = P.tree(rng, { scale: rngRange(rng, 0.8, 1.7) })
       else if (rngChance(rng, 0.22)) prop = P.palm(rng)
-      else if (rngChance(rng, 0.07)) prop = P.riceTerrace(rng, { steps: rngInt(rng, 3, 5), width: rngRange(rng, 7, 10) })
-      else if (rngChance(rng, 0.22)) prop = P.frangipani(rng, { scale: rngRange(rng, 0.8, 1.3) })
+      // No terraces out in the wild. A flight is rigid, up to nine metres
+      // across and laid flat against a curved planet, so on open hillside the
+      // far end climbs metres into the air. They belong on district ground,
+      // which the zone flattening has already levelled.
+      else if (rngChance(rng, 0.26)) prop = P.frangipani(rng, { scale: rngRange(rng, 0.8, 1.3) })
       else prop = rngChance(rng, 0.5) ? P.bush(rng) : P.grassTuft(rng)
 
       this.placeLocalYaw(prop, dir.clone(), rng() * Math.PI * 2)
