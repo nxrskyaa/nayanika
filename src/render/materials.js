@@ -113,6 +113,62 @@ export function flat(color, opts = {}) {
   })
 }
 
+/**
+ * Wind.
+ *
+ * Every foliage material gets a small vertex program bolted on: sway grows
+ * with height above the prop's own base, so trunks stay planted while canopies
+ * and fronds move. Two waves at different rates keep it from looking like a
+ * metronome, and the phase is offset by world position so no two plants move
+ * together.
+ *
+ * Done on the GPU because the world is merged into a handful of meshes — there
+ * are no individual trees left on the CPU to animate.
+ */
+const _windMaterials = []
+export const WIND = { time: { value: 0 }, strength: { value: 1 } }
+
+export function makeWindy(material, { amount = 0.16, base = 0 } = {}) {
+  if (material.userData.windy) return material
+  material.userData.windy = true
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uWindTime = WIND.time
+    shader.uniforms.uWindStrength = WIND.strength
+    shader.uniforms.uWindAmount = { value: amount }
+    shader.uniforms.uWindBase = { value: base }
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform float uWindTime;
+        uniform float uWindStrength;
+        uniform float uWindAmount;
+        uniform float uWindBase;`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        {
+          vec4 wp = modelMatrix * vec4(transformed, 1.0);
+          // Height above the planet's surface stands in for height up the
+          // plant: everything here is merged, so there is no per-prop origin
+          // left to measure from.
+          float radius = length(wp.xyz);
+          float lift = max(0.0, radius - uWindBase);
+          float amp = uWindAmount * uWindStrength * lift * lift * 0.02;
+          float phase = wp.x * 0.35 + wp.z * 0.29;
+          float sway = sin(uWindTime * 1.6 + phase) + 0.45 * sin(uWindTime * 3.1 + phase * 1.7);
+          vec3 up = normalize(wp.xyz);
+          vec3 side = normalize(cross(up, vec3(0.0, 1.0, 0.31)));
+          transformed += (side * sway + up * abs(sway) * -0.12) * amp;
+        }`,
+      )
+  }
+  material.needsUpdate = true
+  _windMaterials.push(material)
+  return material
+}
+
 export function disposeMaterialCache() {
   for (const m of _cache.values()) m.dispose()
   _cache.clear()

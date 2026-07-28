@@ -3,7 +3,7 @@ import { ACCENT, BUILD, GROUND, INK, NATURE } from '../core/palette.js'
 import { nextFrame } from '../core/async.js'
 import { makeRng, rngChance, rngInt, rngPick, rngRange } from '../core/rng.js'
 import { moveAlongSphere, slerpDir, tangentBasis, surfaceQuaternion } from '../core/sphere.js'
-import { toon } from '../render/materials.js'
+import { makeWindy, toon, WIND } from '../render/materials.js'
 import { mergeByMaterial } from './geo.js'
 import { planLots, planStreetFurniture, planStreets, scatterOffStreet } from './layout.js'
 import * as P from './props.js'
@@ -41,6 +41,8 @@ export class World {
     this.anchors = new Map()
     /** Per-district street centrelines, reused for NPC patrol routes. */
     this.streetPaths = new Map()
+    /** Coarse samples of every district street, for keep-clear checks. */
+    this.roadDirs = []
     this.animated = []
   }
 
@@ -74,6 +76,43 @@ export class World {
     return false
   }
 
+  /**
+   * Near *any* carriageway — the trunk road or a district street.
+   *
+   * Landmarks have to be checked against this and not just the highway. The
+   * split gate at Pasar Ubud was authored at district-local x = 0, which is
+   * exactly where the north-south lane runs, so it stood with a tower planted
+   * in each carriageway.
+   */
+  nearRoad(dir, metres = 7.5) {
+    if (this.nearHighway(dir, metres)) return true
+    const dirs = this.roadDirs
+    if (!dirs || dirs.length === 0) return false
+    const cosLimit = Math.cos(metres / this.terrain.radius)
+    for (let i = 0; i < dirs.length; i++) {
+      if (dir.dot(dirs[i]) > cosLimit) return true
+    }
+    return false
+  }
+
+  /** Metres from `dir` to the nearest carriageway centreline. */
+  distanceToRoad(dir) {
+    let best = 1e9
+    const R = this.terrain.radius
+    const scan = (list) => {
+      if (!list) return
+      for (let i = 0; i < list.length; i++) {
+        const dot = dir.dot(list[i])
+        if (dot > 1) continue
+        const m = Math.acos(Math.max(-1, dot)) * R
+        if (m < best) best = m
+      }
+    }
+    scan(this.highwayDirs)
+    scan(this.roadDirs)
+    return best
+  }
+
   async build(onProgress = () => {}) {
     const t = this.terrain
     let step = 0
@@ -104,36 +143,15 @@ export class World {
 
     // --- the loop road ------------------------------------------------
     //
-    // The highway stops at each district's edge instead of ploughing through
-    // it. Districts lay their own streets, and running the highway across them
-    // stacked two roads and two pavements on the same ground — the z-fighting
-    // shards and the "two roads merged into each other" glitch both came from
-    // that overlap.
+    // The highway runs unbroken all the way round, straight through the middle
+    // of every district. Stopping it at each district's edge did keep it from
+    // stacking on top of the local streets, but it also meant the trunk road
+    // simply ended twenty metres short of every village — which is what the
+    // broken roads were. The districts clip *their* streets out of its corridor
+    // instead, in buildDistrict.
     const highways = new THREE.Group()
     /** Coarse samples of every highway centreline, for keep-clear checks. */
     this.highwayDirs = []
-
-    /** Split a polyline into the parts that lie outside every district. */
-    const clipToOpenCountry = (dirs) => {
-      const runs = []
-      let run = []
-      for (const d of dirs) {
-        let inside = false
-        for (const z of ZONES) {
-          if (d.dot(z.dir) > Math.cos(z.radius * 0.9)) {
-            inside = true
-            break
-          }
-        }
-        if (!inside) run.push(d)
-        else {
-          if (run.length > 6) runs.push(run)
-          run = []
-        }
-      }
-      if (run.length > 6) runs.push(run)
-      return runs
-    }
 
     for (let i = 0; i < ROAD_LOOP.length - 1; i++) {
       const a = zoneById(ROAD_LOOP[i])
@@ -151,7 +169,7 @@ export class World {
       }
 
       const rng = makeRng(3000 + i)
-      for (const run of clipToOpenCountry(dirs)) {
+      for (const run of [dirs]) {
         for (let s = 0; s < run.length; s += 2) this.highwayDirs.push(run[s])
 
         const road = buildRoad(run, t, {
@@ -203,6 +221,22 @@ export class World {
 
     this.root.traverse((o) => {
       if (o.isMesh && o !== ground && o !== this.ocean) o.receiveShadow = true
+    })
+
+    // Wind, applied by material colour: every leaf, frond, banner and rice
+    // blade in the world shares one of these, so tagging the material moves
+    // every instance of it at once.
+    const windy = new Set([
+      NATURE.leaf, NATURE.leafDark, NATURE.leafLight, NATURE.bush, NATURE.pine,
+      NATURE.palmFrond, NATURE.palmFrondDark, NATURE.banana, NATURE.bamboo,
+      NATURE.frangipani, NATURE.frangipaniHeart, NATURE.bougainvillea, NATURE.hibiscus,
+      BUILD.bamboo, ACCENT.polengWhite, BUILD.gold,
+    ].map((c) => new THREE.Color(c).getHexString()))
+    const base = t.radius
+    this.root.traverse((o) => {
+      if (!o.isMesh || !o.material?.color) return
+      if (!windy.has(o.material.color.getHexString())) return
+      makeWindy(o.material, { amount: 0.16, base })
     })
 
     return this
@@ -265,22 +299,50 @@ export class World {
       ring: false,
     })
 
-    // Streets.
+    /**
+     * Streets, with the trunk road's corridor cut out of them.
+     *
+     * The highway runs right through the middle of the district, so any local
+     * street that would lie on top of it is clipped away and the two ends are
+     * kept as separate runs. Laying both stacks two carriageways and two sets
+     * of pavement on the same ground, which is where the shattered tarmac came
+     * from — and the alternative, stopping the highway at the district edge,
+     * left every village with the main road ending short of it.
+     */
     const streetDirs = []
+    const clipToOffHighway = (dirs) => {
+      const runs = []
+      let run = []
+      for (const d of dirs) {
+        if (this.nearHighway(d, 7.4)) {
+          if (run.length >= 4) runs.push(run)
+          run = []
+        } else {
+          run.push(d)
+        }
+      }
+      if (run.length >= 4) runs.push(run)
+      return runs
+    }
+
     for (const street of plan.streets) {
       const dirs = street.points.map((p) => toDir(p.x, p.z, new THREE.Vector3()))
       if (dirs.length < 2) continue
-      streetDirs.push(dirs)
-      const road = buildRoad(dirs, t, {
-        width: street.width,
-        pavement: urban ? 1.7 : 1.0,
-        roadColor: GROUND.road,
-        pavementColor: urban ? GROUND.pavement : GROUND.pavementWarm,
-        lineColor: GROUND.line,
-        dashed: street.width > 5.4,
-        edgeLines: false,
-      })
-      g.add(road)
+      for (const run of clipToOffHighway(dirs)) {
+        streetDirs.push(run)
+        for (let s = 0; s < run.length; s += 2) this.roadDirs.push(run[s])
+        g.add(
+          buildRoad(run, t, {
+            width: street.width,
+            pavement: urban ? 1.7 : 1.0,
+            roadColor: GROUND.road,
+            pavementColor: urban ? GROUND.pavement : GROUND.pavementWarm,
+            lineColor: GROUND.line,
+            dashed: street.width > 5.4,
+            edgeLines: false,
+          }),
+        )
+      }
     }
     this.streetPaths.set(zone.id, streetDirs)
 
@@ -322,15 +384,16 @@ export class World {
     })
     for (const lot of lots) {
       const d = toDir(lot.x, lot.z, new THREE.Vector3())
-      // 13m: lot centre clearance must cover half a building (up to ~7.5m for
-      // the widest tower) plus the road's own 4.7m half-width, or a compound
-      // wall ends up standing in the carriageway.
-      if (this.nearHighway(d, 13)) continue
       const building = this.makeBuilding(zone, rng, lot)
       if (!building) continue
+      // Clearance measured from this building's own footprint, against every
+      // carriageway rather than just the trunk road. A fixed margin let the
+      // widest towers stand with ten metres of themselves in the road.
+      const foot = building.userData.footprint ?? 3
+      if (this.nearRoad(d, foot + 5.2)) continue
       this.placeLocalYaw(building, d, lot.facing)
       g.add(building)
-      this.addObstacle(d, (building.userData.footprint ?? 3) * 1.0)
+      this.addObstacle(d, foot)
     }
 
     // Street furniture.
@@ -345,6 +408,9 @@ export class World {
       if (this.nearHighway(d)) continue
       const prop = this.makeStreetProp(zone, rng)
       if (!prop) continue
+      // Street furniture lines the kerb, but a solid one must not end up in the
+      // trunk road's lane where it crosses the district.
+      if (prop.userData.solid && this.nearRoad(d, prop.userData.solid + 5.2)) continue
       this.placeLocalYaw(prop, d, s.angle)
       g.add(prop)
       if (prop.userData.solid) this.addObstacle(d, prop.userData.solid)
@@ -359,7 +425,13 @@ export class World {
       if (!prop) continue
       this.placeLocalYaw(prop, d, s.angle)
       g.add(prop)
-      if (prop.userData.footprint > 1) this.addObstacle(d, prop.userData.footprint * 0.55)
+      if (prop.userData.footprint > 1) {
+        const r = prop.userData.footprint * 0.55
+        // Scattered nature is placed off-street already, but a big banyan can
+        // still overhang the trunk road where it crosses the district.
+        if (this.nearRoad(d, r + 5.2)) continue
+        this.addObstacle(d, r)
+      }
     }
 
     this.addLandmarks(zone, g, rng, toDir, extent)
@@ -520,8 +592,55 @@ export class World {
     // camera is allowed to sit inside — gates, statues, flat furniture. Any
     // landmark with walls needs one, or the follow camera will happily reverse
     // straight through it and fill the screen with the inside of a roof.
-    const put = (obj, x, z, yaw = 0, anchorId = null, solid = 0) => {
-      const d = toDir(x, z, new THREE.Vector3())
+    /**
+     * `clear` is how much roadway this landmark needs to stay out of. Anything
+     * with a footprint gets one: authored district-local coordinates land on
+     * the crossroads more often than you would think, and a split gate at
+     * x = 0 puts a stone tower in each carriageway.
+     *
+     * When a spot is blocked the landmark slides sideways along the local east
+     * axis until it is clear, rather than being dropped — these are the pieces
+     * that give a district its identity and a missing one is worse than a
+     * moved one.
+     */
+    const put = (obj, x, z, yaw = 0, anchorId = null, solid = 0, clear = 0) => {
+      // Anything with a collider needs road clearance whether the caller asked
+      // for it or not — a landmark you can walk into is a landmark a car would
+      // hit, and the trunk road now runs through the middle of every district.
+      const need = clear > 0 ? clear : solid > 0 ? solid + 5.2 : 0
+      let d = toDir(x, z, new THREE.Vector3())
+      if (need > 0 && this.nearRoad(d, need)) {
+        /**
+         * Spiral outward for the clearest spot.
+         *
+         * Sliding along one axis is not enough — the trunk road crosses every
+         * district on its own bearing, so for half of them a sideways nudge
+         * never leaves the carriageway. And in a twenty-metre district with a
+         * highway and a crossroads through it, a wide landmark may have no
+         * fully clear spot at all; take the best on offer rather than giving up
+         * and leaving it straddling the road.
+         */
+        let bestD = d
+        let bestClear = this.distanceToRoad(d)
+        let placed = false
+        for (const r of [5, 8, 11, 14, 17, 20]) {
+          for (let a = 0; a < 12; a++) {
+            const ang = (a / 12) * Math.PI * 2 + r
+            const q = toDir(x + Math.cos(ang) * r, z + Math.sin(ang) * r, new THREE.Vector3())
+            const clearM = this.distanceToRoad(q)
+            if (clearM > bestClear) {
+              bestClear = clearM
+              bestD = q
+            }
+            if (clearM >= need) {
+              placed = true
+              break
+            }
+          }
+          if (placed) break
+        }
+        d = bestD
+      }
       this.placeLocalYaw(obj, d, yaw)
       g.add(obj)
       if (anchorId) this.anchor(anchorId, d)
@@ -539,16 +658,24 @@ export class World {
 
         // The banyan on the crossroads is the centre of any Balinese village —
         // the market, the temple and the road arrange themselves around it.
-        put(P.banyan(rng, { scale: 2.0 }), -6.5, 5.5, 0, null, 2.2)
+        put(P.banyan(rng, { scale: 2.0 }), -6.5, 5.5, 0, null, 2.2, 4.5)
 
-        put(P.candiBentar(rng, 1.0), 0, extent * 0.5, 0, 'main-square:gate')
-        for (const s of [-1, 1]) put(P.guardianStatue(rng, 1), s * 2.4, extent * 0.5 - 1.7, 0)
-        for (const s of [-1, 1]) put(P.penjor(rng), s * 5.4, extent * 0.3, s > 0 ? -Math.PI / 2 : Math.PI / 2)
+        // The temple gate faces the square from the side, off the carriageway.
+        const gate = put(P.candiBentar(rng, 1.0), -11, extent * 0.42, Math.PI * 0.5, 'main-square:gate', 0, 6)
+        const gx = new THREE.Vector3()
+        for (const s of [-1, 1]) {
+          this.placeLocalYaw(P.guardianStatue(rng, 1), gate, Math.PI * 0.5)
+          const st = P.guardianStatue(rng, 1)
+          moveAlongSphere(gate, tangentBasis(gate, gx, new THREE.Vector3()).east, (s * 2.4) / t.radius, gx)
+          this.placeLocalYaw(st, gx.clone(), Math.PI * 0.5)
+          g.add(st)
+        }
+        for (const s of [-1, 1]) put(P.penjor(rng), s * 8.5, extent * 0.3, s > 0 ? -Math.PI / 2 : Math.PI / 2, null, 0, 4)
 
         // The banjar's drum tower — after the temple it is the tallest thing in
         // any Balinese village, and it marks the centre from a long way off.
-        put(P.kulkulTower(rng, 1), -9.5, -5.5, Math.PI * 0.18, null, 1.7)
-        for (const s of [-1, 1]) put(P.umbulUmbul(rng, 1), s * 3.2, extent * 0.36, 0)
+        put(P.kulkulTower(rng, 1), -9.5, -5.5, Math.PI * 0.18, null, 1.7, 4.5)
+        for (const s of [-1, 1]) put(P.umbulUmbul(rng, 1), s * 8, extent * 0.36, 0, null, 0, 4)
 
         put(P.columnSign(rng, 3.2), 7.5, 3.5, -0.4, 'main-square:board')
         this.anchor('main-square:flowers', toDir(-4.5, 2.5, new THREE.Vector3()))
@@ -574,8 +701,7 @@ export class World {
       }
       case 'seaside': {
         const lh = P.lighthouse(rng)
-        const d = put(lh, extent * 0.55, extent * 0.35, 0, 'seaside:lighthouse')
-        this.addObstacle(d, 2.4)
+        put(lh, extent * 0.55, extent * 0.35, 0, 'seaside:lighthouse', 2.4)
         for (let i = 0; i < 11; i++) {
           const px = rngRange(rng, -extent, extent)
           const pz = rngRange(rng, -extent, extent)
@@ -610,8 +736,7 @@ export class World {
           put(P.riceTerrace(rng, { steps: rngInt(rng, 3, 5), width: rngRange(rng, 7, 9) }), x, z, a + Math.PI / 2)
         }
         const shrine = P.meruTower(rng, 3, 0.6)
-        const sd = put(shrine, 0, 2, Math.PI, 'rice-terrace:subak')
-        this.addObstacle(sd, 2.2)
+        put(shrine, 0, 2, Math.PI, 'rice-terrace:subak', 2.2)
         put(P.candiBentar(rng, 0.7), 0, 8, 0)
         for (const s of [-1, 1]) put(P.tedung(rng, 1), s * 2.6, 3.5, 0)
         put(P.bale(rng, { width: 4, depth: 3.4 }), -8, -5, Math.PI * 0.3)
@@ -629,20 +754,17 @@ export class World {
       }
       case 'whisper-woods': {
         const cave = this.buildCave(rng)
-        const d = put(cave, 4, -8, Math.PI * 0.15, 'whisper-woods:cave')
-        this.addObstacle(d, 3.2)
+        put(cave, 4, -8, Math.PI * 0.15, 'whisper-woods:cave', 3.2)
         break
       }
       case 'mountain-temple': {
         // Besakih reads as a stack: gate, stairs, courtyard, then a row of meru
         // getting taller toward the middle.
         const meru = P.meruTower(rng, 11, 1.0)
-        const d = put(meru, 0, -6, Math.PI, 'mountain-temple:hall')
-        this.addObstacle(d, 3.2)
+        put(meru, 0, -6, Math.PI, 'mountain-temple:hall', 3.2)
         for (const [x, tiers] of [[-5.5, 7], [5.5, 7], [-10, 5], [10, 5]]) {
           const m = P.meruTower(rng, tiers, 0.82)
-          const md = put(m, x, -6.5, Math.PI)
-          this.addObstacle(md, 2.4)
+          put(m, x, -6.5, Math.PI, null, 2.4)
         }
 
         put(P.candiBentar(rng, 1.35), 0, 11, 0, 'mountain-temple:gate')
@@ -657,9 +779,11 @@ export class World {
         break
       }
       case 'capital-corp': {
-        const tower = P.corpTower(rng, { width: 9, depth: 9, floors: 13 })
-        const d = put(tower, 0, 0, Math.PI * 0.25, 'capital-corp:tower')
-        this.addObstacle(d, 7)
+        // Narrower than it was: a nine-metre footprint plus its road clearance
+        // does not fit anywhere in a district this size once the trunk road and
+        // the crossroads have taken their share.
+        const tower = P.corpTower(rng, { width: 6.5, depth: 6.5, floors: 13 })
+        put(tower, 0, 0, Math.PI * 0.25, 'capital-corp:tower', 4.9)
         put(P.silos(rng), extent * 0.5, -extent * 0.3, 0)
         put(P.factoryShed(rng), -extent * 0.45, extent * 0.25, Math.PI * 0.5)
         this.anchor('capital-corp:lobby', toDir(0, 9, new THREE.Vector3()))
@@ -668,8 +792,7 @@ export class World {
       case 'red-cliff': {
         // A clifftop compound with its own gate, looking straight out to sea.
         const h = P.balineseCompound(rng, { width: 9, depth: 8 })
-        const d = put(h, 0, 0, Math.PI, 'red-cliff:house')
-        this.addObstacle(d, 4.6)
+        put(h, 0, 0, Math.PI, 'red-cliff:house', 4.6)
         put(P.meruTower(rng, 3, 0.7), 0, -7.5, Math.PI)
         put(P.guardRail(9, rng), 0, 8, 0)
         for (const s of [-1, 1]) put(P.frangipani(rng, { scale: 1.1 }), s * 6, 5, 0)
@@ -682,8 +805,7 @@ export class World {
           put(P.gravestone(rng), -8 + col * 3.2 + rngRange(rng, -0.4, 0.4), -6 + row * 4 + rngRange(rng, -0.5, 0.5), rngRange(rng, -0.2, 0.2))
         }
         const tree = P.banyan(rng, { scale: 2.0 })
-        const bd = put(tree, 5, -2, 0)
-        this.addObstacle(bd, 2.0)
+        put(tree, 5, -2, 0, null, 2.0)
         put(P.candiBentar(rng, 0.85), 0, extent * 0.6, 0, 'lucero-graveyard:gate')
         for (const s of [-1, 1]) put(P.guardianStatue(rng, 0.9), s * 2.2, extent * 0.6 - 1.4, 0)
         put(P.balineseShrine(rng, 1.15), -5, 3, 0)
@@ -857,10 +979,22 @@ export class World {
   }
 
   update(dt, time) {
+    WIND.time.value += dt
+    // A slow gust cycle so the wind rises and drops instead of running flat.
+    WIND.strength.value = 0.75 + Math.sin(time * 0.21) * 0.3 + Math.sin(time * 0.07) * 0.15
+
     for (const a of this.animated) {
       if (a.kind === 'waterfall' && a.mesh.material.map) {
         a.mesh.material.map.offset.y -= dt * 0.8
       }
+    }
+
+    // The sea breathes: a slow swell in and out, so the coastline is never a
+    // dead line between two flat colours.
+    if (this.ocean) {
+      const swell = 1 + Math.sin(time * 0.55) * 0.00035 + Math.sin(time * 0.83 + 1.7) * 0.0002
+      this.ocean.scale.setScalar(swell)
+      this.ocean.rotation.y += dt * 0.004
     }
   }
 }

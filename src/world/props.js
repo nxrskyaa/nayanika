@@ -1186,22 +1186,55 @@ export function jukung(rng) {
 /* nature                                                               */
 /* ------------------------------------------------------------------ */
 
+/**
+ * A broadleaf tree.
+ *
+ * The canopy is two or three broad, flattened tiers stacked with a gap between
+ * them rather than a cluster of spheres. Spheres pile into a lumpy blob that
+ * reads as a bush on a stick from any distance; tiers keep a clean horizontal
+ * silhouette and catch the light on their tops, which is what makes a stylised
+ * tree legible against a bright sky.
+ */
 export function tree(rng, opts = {}) {
   const g = group()
   const scale = opts.scale ?? rngRange(rng, 0.8, 1.5)
-  const trunkH = rngRange(rng, 1.8, 3.2) * scale
-  g.add(at(cyl(0.13 * scale, 0.24 * scale, trunkH, 7, rngPick(rng, [NATURE.trunk, NATURE.trunkDark])), 0, trunkH / 2, 0))
-  const blobs = rngInt(rng, 3, 5)
-  const leafCol = opts.leaf ?? rngPick(rng, [NATURE.leaf, NATURE.leafDark, NATURE.leafLight, NATURE.bush])
-  for (let i = 0; i < blobs; i++) {
-    const r = rngRange(rng, 0.75, 1.35) * scale
-    const a = (i / blobs) * Math.PI * 2 + rng() * 0.7
-    const rad = i === 0 ? 0 : rngRange(rng, 0.25, 0.85) * scale
-    const s = sphere(r, leafCol, 7)
-    s.scale.set(r * 1.15, r * 0.86, r * 1.1)
-    g.add(at(s, Math.cos(a) * rad, trunkH + rngRange(rng, 0.2, 0.95) * scale, Math.sin(a) * rad))
+  const trunkH = rngRange(rng, 2.0, 3.4) * scale
+  const trunkCol = rngPick(rng, [NATURE.trunk, NATURE.trunkDark])
+  const lean = rngRange(rng, -0.05, 0.05)
+
+  const trunk = at(cyl(0.11 * scale, 0.22 * scale, trunkH, 7, trunkCol), 0, trunkH / 2, 0)
+  trunk.rotation.z = lean
+  g.add(trunk)
+
+  // A couple of limbs so the crown is not balanced on a bare pole.
+  for (let i = 0; i < 2; i++) {
+    const a = rng() * Math.PI * 2
+    const limb = at(
+      cyl(0.05 * scale, 0.08 * scale, 0.9 * scale, 5, trunkCol),
+      Math.cos(a) * 0.22 * scale,
+      trunkH * 0.74,
+      Math.sin(a) * 0.22 * scale,
+    )
+    limb.rotation.z = -Math.cos(a) * 0.55
+    limb.rotation.x = Math.sin(a) * 0.55
+    g.add(limb)
   }
-  g.userData.footprint = 1.4 * scale
+
+  const leafCol = opts.leaf ?? rngPick(rng, [NATURE.leaf, NATURE.leafDark, NATURE.bush])
+  const litCol = opts.leaf ?? NATURE.leafLight
+  const tiers = rngInt(rng, 2, 4)
+  let y = trunkH - 0.15 * scale
+  for (let i = 0; i < tiers; i++) {
+    const t = i / Math.max(1, tiers - 1)
+    const r = (1.55 - t * 0.62) * scale * rngRange(rng, 0.9, 1.08)
+    const thick = (0.5 - t * 0.12) * scale
+    const disc = sphere(1, i === 0 ? leafCol : rngPick(rng, [leafCol, litCol]), 10)
+    disc.scale.set(r, thick, r * rngRange(rng, 0.92, 1.06))
+    g.add(at(disc, rngRange(rng, -0.12, 0.12) * scale, y + thick * 0.5, rngRange(rng, -0.12, 0.12) * scale))
+    y += thick * 1.35
+  }
+
+  g.userData.footprint = 1.5 * scale
   return g
 }
 

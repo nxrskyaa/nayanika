@@ -96,10 +96,24 @@ export class Terrain {
     const z = dir.z
     let h = this._wildHeight(x, y, z)
 
-    // Ocean basin.
+    /**
+     * Ocean basin.
+     *
+     * The rim is pushed in and out by low-frequency noise, and a second band of
+     * finer noise ripples the last stretch before the shore. A plain circular
+     * falloff put the coastline on a perfect circle, which is why the sea read
+     * as a round pond stamped into the island rather than a coast — the shape
+     * of the shoreline is almost all of what makes water look like sea.
+     */
     const oceanAng = Math.acos(THREE.MathUtils.clamp(x * OCEAN.dir.x + y * OCEAN.dir.y + z * OCEAN.dir.z, -1, 1))
-    const ow = smoothFalloff(oceanAng, OCEAN.radius, OCEAN.falloff)
-    h -= ow * OCEAN.depth
+    const coastWobble =
+      fbm(this.n2, x * 1.6, y * 1.6, z * 1.6, 3, 2.1, 0.5) * 0.085 +
+      fbm(this.n3, x * 4.1, y * 4.1, z * 4.1, 2, 2.2, 0.5) * 0.028
+    const ow = smoothFalloff(oceanAng, OCEAN.radius + coastWobble, OCEAN.falloff)
+    // Bays and headlands: shallow water gets an extra ripple so the waterline
+    // meanders instead of following one contour.
+    const shore = ow > 0.02 && ow < 0.55 ? fbm(this.n1, x * 7.5, y * 7.5, z * 7.5, 2, 2.1, 0.5) * 1.5 : 0
+    h -= ow * OCEAN.depth + shore
 
     // Hand-placed peaks and bowls.
     for (let i = 0; i < FEATURES.length; i++) {

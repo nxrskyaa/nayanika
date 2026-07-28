@@ -10,7 +10,7 @@ import { headingTowards, moveAlongSphere, tangentBasis } from './core/sphere.js'
 import { Stage } from './render/stage.js'
 import { Sky } from './render/sky.js'
 import { DayNight } from './render/daynight.js'
-import { toon } from './render/materials.js'
+import { toon, WIND } from './render/materials.js'
 
 import { Terrain } from './world/terrain.js'
 import { World } from './world/world.js'
@@ -516,6 +516,8 @@ if (import.meta.env?.DEV) {
     get player() { return player },
     get npcs() { return npcs },
     get wanderers() { return wanderers },
+    zones: ZONES,
+    wind: WIND,
     /** Drive the real game for a stretch and report anything a player would see. */
     async playtest(opts) {
       const { runPlaytest } = await import('./dev/playtest.js')

@@ -166,11 +166,50 @@ function roadTest(N) {
   return { tris, buried, pct: +((100 * buried) / Math.max(1, tris)).toFixed(2), worstM: +worst.toFixed(2) }
 }
 
+/**
+ * Anything solid standing in a carriageway, and any break in the trunk road.
+ * Both are things a player sees within a minute of walking anywhere.
+ */
+function worldTest(N) {
+  const { world, terrain: t } = N
+  const R = t.radius
+  let inCarriageway = 0
+  let worstIntrusionM = 0
+  for (const o of world.obstacles) {
+    let nearest = 1e9
+    for (const d of world.highwayDirs) {
+      nearest = Math.min(nearest, Math.acos(Math.min(1, Math.max(-1, o.dir.dot(d)))) * R)
+    }
+    for (const d of world.roadDirs) {
+      nearest = Math.min(nearest, Math.acos(Math.min(1, Math.max(-1, o.dir.dot(d)))) * R)
+    }
+    const clear = nearest - o.radius
+    if (clear < 3.3) {
+      inCarriageway++
+      worstIntrusionM = Math.max(worstIntrusionM, 3.3 - clear)
+    }
+  }
+
+  // The loop road has to actually reach every district it serves.
+  let worstGapM = 0
+  for (const z of N.zones) {
+    let nearest = 1e9
+    for (const d of world.highwayDirs) {
+      nearest = Math.min(nearest, Math.acos(Math.min(1, Math.max(-1, z.dir.dot(d)))) * R)
+    }
+    worstGapM = Math.max(worstGapM, nearest)
+  }
+  return { inCarriageway, worstIntrusionM: +worstIntrusionM.toFixed(2), worstHighwayGapM: +worstGapM.toFixed(1) }
+}
+
 export function runPlaytest(N, npcs, wanderers, opts = {}) {
   const walk = walkTest(N, opts)
   const crowd = crowdTest(N, npcs, wanderers, opts)
   const road = roadTest(N)
+  const world = worldTest(N)
   const problems = []
+  if (world.inCarriageway) problems.push(`${world.inCarriageway} solid props stand in a road (worst ${world.worstIntrusionM}m in)`)
+  if (world.worstHighwayGapM > 6) problems.push(`the loop road stops ${world.worstHighwayGapM}m short of a district`)
   if (walk.sunk) problems.push(`player sank below the surface on ${walk.sunk} samples (worst ${walk.worstSunkM.toFixed(2)}m)`)
   if (walk.insideBuilding) problems.push(`player ended up inside a building on ${walk.insideBuilding} samples`)
   if (crowd.npcSunk) problems.push(`NPCs sank on ${crowd.npcSunk} samples (worst ${crowd.npcWorstSunkM.toFixed(2)}m)`)
@@ -178,5 +217,5 @@ export function runPlaytest(N, npcs, wanderers, opts = {}) {
   if (crowd.wandererInsideBuilding) problems.push(`pedestrians walked through a building on ${crowd.wandererInsideBuilding} samples`)
   if (crowd.wandererMoonwalkFrames) problems.push(`pedestrians moonwalked on ${crowd.wandererMoonwalkFrames} samples`)
   if (road.pct > 0.5) problems.push(`${road.pct}% of road surface is under the terrain (worst ${road.worstM}m)`)
-  return { walk, crowd, road, problems, clean: problems.length === 0 }
+  return { walk, crowd, road, world, problems, clean: problems.length === 0 }
 }
