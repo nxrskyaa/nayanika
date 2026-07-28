@@ -15,8 +15,97 @@ import { createCharacter, HAIR_STYLES } from './rig.js'
 
 const _t = new THREE.Vector3()
 const _t2 = new THREE.Vector3()
+const _look = new THREE.Vector3()
+const _push = new THREE.Vector3()
 const _east = new THREE.Vector3()
 const _north = new THREE.Vector3()
+
+/**
+ * Slide a direction out of every building footprint it lands in.
+ *
+ * Several passes: clearing one footprint can drop the point straight into the
+ * next, and buildings along a street frontage do overlap.
+ */
+function pushClearOfBuildings(dir, world, radius, clearance = 0.6) {
+  const obstacles = world?.obstacles
+  if (!obstacles || !obstacles.length) return dir
+  for (let pass = 0; pass < 5; pass++) {
+    let moved = false
+    for (let i = 0; i < obstacles.length; i++) {
+      const o = obstacles[i]
+      const dot = THREE.MathUtils.clamp(dir.dot(o.dir), -1, 1)
+      const minDist = o.radius + clearance
+      if (Math.acos(dot) * radius >= minDist) continue
+
+      _push.copy(dir).addScaledVector(o.dir, -o.dir.dot(dir))
+      if (_push.lengthSq() < 1e-10) continue
+      _push.normalize()
+      moveAlongSphere(o.dir, _push, minDist / radius, dir)
+      dir.normalize()
+      moved = true
+    }
+    if (!moved) break
+  }
+  return dir
+}
+
+/**
+ * Turn a street centreline into a patrol route that clears the buildings.
+ *
+ * Pushing the existing waypoints out is not enough on its own: the walker
+ * slerps between them, so a hop over a building's footprint still cuts the
+ * corner even when both endpoints are outside it. Densify first, then push.
+ */
+function buildPatrol(path, world, radius) {
+  const dense = []
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i]
+    const b = path[i + 1]
+    const arc = Math.acos(THREE.MathUtils.clamp(a.dot(b), -1, 1)) * radius
+    const steps = Math.max(1, Math.ceil(arc / 1.0))
+    for (let s = 0; s < steps; s++) dense.push(slerpDir(a, b, s / steps, new THREE.Vector3()))
+  }
+  dense.push(path[path.length - 1].clone())
+
+  /**
+   * Keep the longest stretch that is already clear of every footprint, and
+   * throw the rest away.
+   *
+   * Shoving the offending points aside instead looks like the obvious fix and
+   * is worse: two neighbours get pushed to opposite sides of the same
+   * building, and the walker slerps between them straight through the middle
+   * of it. Dropping them keeps the route on ground the street actually offers.
+   * A shorter beat is invisible; walking through a wall is not.
+   */
+  const clear = dense.map((d) => !insideAnyBuilding(d, world, radius, 0.55))
+  let bestStart = 0
+  let bestLen = 0
+  let runStart = -1
+  for (let i = 0; i <= clear.length; i++) {
+    if (i < clear.length && clear[i]) {
+      if (runStart < 0) runStart = i
+    } else if (runStart >= 0) {
+      const len = i - runStart
+      if (len > bestLen) {
+        bestLen = len
+        bestStart = runStart
+      }
+      runStart = -1
+    }
+  }
+  return bestLen >= 6 ? dense.slice(bestStart, bestStart + bestLen) : []
+}
+
+function insideAnyBuilding(dir, world, radius, margin = 0.15) {
+  const obstacles = world?.obstacles
+  if (!obstacles) return false
+  for (let i = 0; i < obstacles.length; i++) {
+    const o = obstacles[i]
+    const dot = THREE.MathUtils.clamp(dir.dot(o.dir), -1, 1)
+    if (Math.acos(dot) * radius < o.radius + margin) return true
+  }
+  return false
+}
 
 function localOffset(center, x, z, radius, out = new THREE.Vector3()) {
   const len = Math.hypot(x, z)
@@ -66,14 +155,19 @@ export class NPC {
 
     tangentBasis(this.dir, _east, _north)
     const yaw = this.def.facing ?? 0
-    this.baseHeading.copy(_north).multiplyScalar(Math.cos(yaw)).addScaledVector(_east, Math.sin(yaw)).normalize()
+    // Same yaw convention as the follow camera: growing yaw turns north toward
+    // west. Using +east here mirrored every authored `facing`, so NPCs meant to
+    // greet the road were turned to the wall behind them.
+    this.baseHeading.copy(_north).multiplyScalar(Math.cos(yaw)).addScaledVector(_east, -Math.sin(yaw)).normalize()
     this.heading.copy(this.baseHeading)
     this.sync()
     return this
   }
 
   sync() {
-    const h = Math.max(this.terrain.heightAt(this.dir), 0)
+    // renderHeightAt, not heightAt: the drawn mesh stands above the analytic
+    // surface across a cell, and standing on the analytic one buries the feet.
+    const h = Math.max(this.terrain.renderHeightAt(this.dir), 0)
     this.up.copy(this.dir).normalize()
     this.worldPos.copy(this.up).multiplyScalar(this.terrain.radius + h)
     this.object.position.copy(this.worldPos)
@@ -149,7 +243,18 @@ export class Wanderer {
     this.object = this.rig.root
     this.object.name = 'pedestrian'
 
-    this.path = path
+    /**
+     * The patrol is cleared of buildings once, here, rather than shoving the
+     * walker sideways every frame.
+     *
+     * A per-frame push moves him across his own facing, so he slides crabwise
+     * or backwards past anything he brushes. Baking the detour into the route
+     * means the tangent he faces along is the path he actually walks.
+     */
+    this.path = buildPatrol(path, world, terrain.radius)
+    /** False when no stretch of this street was walkable; caller skips it. */
+    this.valid = this.path.length >= 6
+    if (!this.valid) this.path = [path[0].clone(), path[Math.min(1, path.length - 1)].clone()]
     this.t = rng()
     this.speed = rngRange(rng, 1.1, 2.2)
     this.dirSign = rng() > 0.5 ? 1 : -1
@@ -200,18 +305,48 @@ export class Wanderer {
       }
     }
 
-    const prev = _t.copy(this.dir)
     this.sample(this.t, this.dir)
-    this.up.copy(this.dir).normalize()
 
-    _t2.copy(this.dir).sub(prev)
+    /**
+     * Face along the path, read from a point a little further along it in the
+     * direction of travel.
+     *
+     * Taking the heading from net displacement instead looks equivalent and is
+     * not: the obstacle push-out below also moves `dir`, so the pedestrian
+     * would turn to face whichever way a wall shoved him, and at the end of a
+     * patrol the displacement reverses in a single frame and he walks the next
+     * stretch backwards.
+     */
+    // At the very ends of the patrol the look-ahead runs off the path and the
+    // tangent collapses to nothing, leaving the pedestrian facing the way he
+    // came for the first stretch of the return leg. Sample backwards there and
+    // flip the result instead.
+    const step = 0.012
+    let aheadT = this.t + this.dirSign * step
+    let flip = 1
+    if (aheadT > 1 || aheadT < 0) {
+      aheadT = this.t - this.dirSign * step
+      flip = -1
+    }
+    this.sample(THREE.MathUtils.clamp(aheadT, 0, 1), _look)
+    this.up.copy(this.dir).normalize()
+    _t2.copy(_look).sub(this.dir).multiplyScalar(flip)
     _t2.addScaledVector(this.up, -this.up.dot(_t2))
     if (_t2.lengthSq() > 1e-10) {
+      // `ahead` is already offset in the direction of travel for both signs of
+      // dirSign, so this vector needs no further flipping.
       _t2.normalize()
-      this.heading.lerp(_t2, 1 - Math.exp(-6 * dt)).normalize()
+      // Snap through a reversal rather than easing; easing through 180 degrees
+      // left the pedestrian moonwalking for the best part of a second a lap.
+      if (this.heading.dot(_t2) < -0.2) this.heading.copy(_t2)
+      else this.heading.lerp(_t2, 1 - Math.exp(-6 * dt)).normalize()
     }
 
-    const h = Math.max(this.terrain.heightAt(this.dir), 0)
+    this.up.copy(this.dir).normalize()
+
+    // renderHeightAt, not heightAt: the drawn mesh stands above the analytic
+    // surface across a cell, and standing on the analytic one buries the feet.
+    const h = Math.max(this.terrain.renderHeightAt(this.dir), 0)
     this.worldPos.copy(this.up).multiplyScalar(this.terrain.radius + h)
     this.object.position.copy(this.worldPos)
     surfaceQuaternion(this.up, this.heading, this.object.quaternion)

@@ -156,6 +156,9 @@ async function boot() {
       const path = paths[Math.floor(rng() * paths.length)]
       if (!path || path.length < 4) continue
       const w = new Wanderer(path, terrain, world, seed++ * 7919)
+      // No walkable stretch on that street — better no pedestrian there than
+      // one strolling through somebody's compound wall.
+      if (!w.valid) continue
       stage.scene.add(w.object)
       wanderers.push(w)
     }
@@ -508,5 +511,15 @@ frame()
 
 // A tiny console handle for poking at the world during development.
 if (import.meta.env?.DEV) {
-  window.NAYANIKA = { stage, sky, dayNight, terrain, world, quests, get player() { return player }, followCam, audio, input }
+  window.NAYANIKA = {
+    stage, sky, dayNight, terrain, world, quests, followCam, audio, input,
+    get player() { return player },
+    get npcs() { return npcs },
+    get wanderers() { return wanderers },
+    /** Drive the real game for a stretch and report anything a player would see. */
+    async playtest(opts) {
+      const { runPlaytest } = await import('./dev/playtest.js')
+      return runPlaytest(window.NAYANIKA, npcs, wanderers, opts)
+    },
+  }
 }

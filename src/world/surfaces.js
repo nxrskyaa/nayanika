@@ -132,7 +132,7 @@ export function buildRoad(dirs, terrain, opts = {}) {
     roadColor,
     pavementColor,
     lineColor,
-    kerbHeight = 0.2,
+    kerbHeight = 0.3,
     dashed = true,
     edgeLines = false,
   } = opts
@@ -142,56 +142,47 @@ export function buildRoad(dirs, terrain, opts = {}) {
   const half = width * 0.5
 
   const ups = dirs.map((d) => d.clone().normalize())
-  const leftDirs = offsetPath(dirs, -half, radius)
-  const rightDirs = offsetPath(dirs, half, radius)
-  const outerL = offsetPath(dirs, -(half + pavement), radius)
-  const outerR = offsetPath(dirs, half + pavement, radius)
 
   /**
-   * Deck height per station: the highest ground anywhere across the full
-   * width, so the carriageway is level from kerb to kerb.
+   * The carriageway is laid as several narrow strips side by side rather than
+   * one wide quad, and every strip follows the ground.
    *
-   * A road is one flat quad across its width, and the ground under it rises by
-   * as much as 3.8 metres from one kerb to the other. Following the centreline
-   * alone left the surface buried on the uphill side — that is what put wedges
-   * of grass in the middle of the tarmac. Sitting on the high point instead
-   * turns the road into an embankment, which is what a real one is.
+   * One quad spanning the full width cannot: the ground under a road rises by
+   * as much as 3.8m from kerb to kerb, so a flat span is buried on the uphill
+   * side — that is what put wedges of grass through the tarmac. Raising the
+   * whole deck onto the high point fixed the tarmac and broke something worse,
+   * because the player still walks at ground height and so sank through the
+   * road he was standing on. Strips narrow enough to track the terrain mesh
+   * keep the surface *at* ground level, which is the only version of this that
+   * both looks right and can be walked on.
    */
-  // Sampled at ~1m across the width. The terrain mesh cell is about 2.1m, so
-  // anything coarser lets a ridge slip between two samples and poke through
-  // the finished surface.
-  const span = half + pavement
-  const crossSteps = Math.max(6, Math.ceil((span * 2) / 1.0))
-  const crossPaths = []
-  for (let k = 0; k <= crossSteps; k++) {
-    const off = -span + (k / crossSteps) * span * 2
-    crossPaths.push(Math.abs(off) < 1e-6 ? dirs : offsetPath(dirs, off, radius))
-  }
-  const deck = dirs.map((_, i) => {
-    let h = terrain.seaLevel
-    for (let k = 0; k < crossPaths.length; k++) {
-      const q = terrain.renderHeightAt(crossPaths[k][i])
-      if (q > h) h = q
+  const laneWidth = 0.8
+  const stripsAcross = (from, to, color, lift, material) => {
+    const total = to - from
+    const count = Math.max(1, Math.ceil(Math.abs(total) / laneWidth))
+    let prev = offsetPath(dirs, from, radius)
+    for (let k = 1; k <= count; k++) {
+      const off = from + (k / count) * total
+      const next = offsetPath(dirs, off, radius)
+      const strip = stripBetween(
+        toSurfacePoints(prev, terrain, lift),
+        toSurfacePoints(next, terrain, lift),
+        ups,
+        color,
+        material ? { material } : undefined,
+      )
+      if (strip) g.add(strip)
+      prev = next
     }
-    return h
-  })
+  }
 
-  /** Lift a direction list onto the deck rather than onto the ground. */
-  const onDeck = (path, lift) =>
-    path.map((d, i) => d.clone().normalize().multiplyScalar(radius + deck[i] + lift))
-
-  const road = stripBetween(onDeck(leftDirs, 0.1), onDeck(rightDirs, 0.1), ups, roadColor, {
-    material: { layer: DECAL_LAYER.road },
-  })
-  if (road) g.add(road)
+  stripsAcross(-half, half, roadColor, 0.15, { layer: DECAL_LAYER.road })
 
   if (pavement > 0) {
     for (const sign of [-1, 1]) {
-      const inner = sign < 0 ? leftDirs : rightDirs
-      const outer = sign < 0 ? outerL : outerR
-      const top = stripBetween(onDeck(inner, kerbHeight), onDeck(outer, kerbHeight), ups, pavementColor)
-      if (top) g.add(top)
+      stripsAcross(sign * half, sign * (half + pavement), pavementColor, kerbHeight, null)
 
+      const inner = offsetPath(dirs, sign * half, radius)
       const sideNormals = ups.map((u, i) => {
         const tan = new THREE.Vector3().subVectors(
           dirs[Math.min(dirs.length - 1, i + 1)],
@@ -201,41 +192,27 @@ export function buildRoad(dirs, terrain, opts = {}) {
         tan.addScaledVector(uu, -uu.dot(tan)).normalize()
         return new THREE.Vector3().crossVectors(uu, tan).multiplyScalar(-sign)
       })
-
       // Vertical kerb face so the edge catches an ink line.
-      const face = stripBetween(onDeck(inner, kerbHeight), onDeck(inner, 0.06), sideNormals, pavementColor)
-      if (face) g.add(face)
-
-      // Embankment: ties the raised deck back down into the hillside. Without
-      // it the road reads as a ribbon hanging in the air wherever it is cut
-      // across a slope.
-      const toe = offsetPath(dirs, sign * (half + pavement + 1.7), radius)
-      const skirt = stripBetween(
-        onDeck(outer, kerbHeight),
-        toe.map((d) => terrain.surfacePoint(d, -0.12, new THREE.Vector3())),
+      const face = stripBetween(
+        toSurfacePoints(inner, terrain, kerbHeight),
+        toSurfacePoints(inner, terrain, 0.12),
         sideNormals,
         pavementColor,
       )
-      if (skirt) g.add(skirt)
+      if (face) g.add(face)
     }
   }
 
-  // Markings ride the deck too. Left on the ground they sank under the raised
-  // carriageway and came back as broken scraps of white.
   if (dashed) {
-    // Long dash, long gap. Short ones a couple of stations wide broke up into
-    // flickering specks as soon as the road ran away from the camera, which is
-    // what made the centreline look shredded on a phone.
+    // Long dash, long gap. Two-station dashes broke into flickering specks as
+    // soon as the road ran away from the camera.
     const seg = 4
     for (let i = 0; i + seg <= dirs.length - 1; i += seg * 2) {
       const slice = dirs.slice(i, i + seg + 1)
       const sUps = ups.slice(i, i + seg + 1)
-      const sDeck = deck.slice(i, i + seg + 1)
-      const lift = (path) =>
-        path.map((d, k) => d.clone().normalize().multiplyScalar(radius + sDeck[k] + 0.14))
       const dash = stripBetween(
-        lift(offsetPath(slice, -0.22, radius)),
-        lift(offsetPath(slice, 0.22, radius)),
+        toSurfacePoints(offsetPath(slice, -0.22, radius), terrain, 0.2),
+        toSurfacePoints(offsetPath(slice, 0.22, radius), terrain, 0.2),
         sUps,
         lineColor,
         { material: { layer: DECAL_LAYER.marking } },
@@ -247,8 +224,8 @@ export function buildRoad(dirs, terrain, opts = {}) {
   if (edgeLines) {
     for (const sign of [-1, 1]) {
       const line = stripBetween(
-        onDeck(offsetPath(dirs, sign * (half - 0.6), radius), 0.14),
-        onDeck(offsetPath(dirs, sign * (half - 0.34), radius), 0.14),
+        toSurfacePoints(offsetPath(dirs, sign * (half - 0.6), radius), terrain, 0.2),
+        toSurfacePoints(offsetPath(dirs, sign * (half - 0.34), radius), terrain, 0.2),
         ups,
         lineColor,
         { material: { layer: DECAL_LAYER.marking } },
